@@ -13,9 +13,9 @@
 
 | 编号 | 状态 | 改动摘要 |
 |---|---|---|
-| **21** | ✅ 已修 | 引擎新增**同步** `Dispose()`（取消 + 超时等待 + 强制释放）；工作循环提前到 `StartAsync` 启动并等 `_startTrigger`；`Closed` 改调 `Dispose()` |
-| **22** | ✅ 已修 | 引擎新增 `StartFailed` 事件；开机自动启动失败时界面复位，不再卡在"停止" |
-| **23** | ✅ 已修 | 隐藏到托盘时锁屏提醒只写日志，不再尝试弹看不见的对话框 |
+| **20** | ✅ 已修 | 引擎新增**同步** `Dispose()`（取消 + 超时等待 + 强制释放）；工作循环提前到 `StartAsync` 启动并等 `_startTrigger`；`Closed` 改调 `Dispose()` |
+| **21** | ✅ 已修 | 引擎新增 `StartFailed` 事件；开机自动启动失败时界面复位，不再卡在"停止" |
+| **22** | ✅ 已修 | 隐藏到托盘时锁屏提醒只写日志，不再尝试弹看不见的对话框 |
 | 20 后续 | ✅ 已加 | 「测光摄像头」下拉选择器（见第 20 条末） |
 
 验证方式：**完整 `dotnet build` 通过（0 error）** —— 清空 `obj/` 后权限问题消失，
@@ -27,23 +27,22 @@
 | 编号 | 状态 | 改动摘要 |
 |---|---|---|
 | 1 | ✅ 已修 | `_brightnessController` 改为惰性创建，并在 `Closed`/停止/启动引擎时 `Dispose()`（释放系统亮度覆盖）<br>⚠️ 本轮发现只堵住一半，见第 21 条 |
-| 2 | ✅ 已修 | 删除 3 处 `LightBulb` 强杀（`App.xaml.cs` 的启动逻辑保留） |
-| 3 | ✅ 已修 | 人脸微调改为「连续 3 次同方向 + 每步 3% + 累计上限 ±15%」 |
-| 5 | ✅ 已修 | 亮度映射改用 EMA 后的 `smoothLuma`；强光锁定解除仍看原始采样 |
-| 6 | ✅ 已修 | 人脸检测返回 `null` 时立即作废 `noFaceConfirmed` / `lockWarningSent` |
-| 7 | ✅ 已修 | `GetIdleSeconds()` 改用 `GetTickCount64` 补位，处理 32 位回绕 |
-| 8 | ✅ 已改 | 预览帧改为「下一帧替换时释放旧帧」，失败时留 `Debug.WriteLine` |
-| 9 | ✅ 已修 | 源组初始化拆成「独占→共享」整体重试，`_hasExclusiveControl` 只在成功后赋值 |
+| 2 | ✅ 已修 | 人脸微调改为「连续 3 次同方向 + 每步 3% + 累计上限 ±15%」 |
+| 4 | ✅ 已修 | 亮度映射改用 EMA 后的 `smoothLuma`；强光锁定解除仍看原始采样 |
+| 5 | ✅ 已修 | 人脸检测返回 `null` 时立即作废 `noFaceConfirmed` / `lockWarningSent` |
+| 6 | ✅ 已修 | `GetIdleSeconds()` 改用 `GetTickCount64` 补位，处理 32 位回绕 |
+| 7 | ✅ 已改 | 预览帧改为「下一帧替换时释放旧帧」，失败时留 `Debug.WriteLine` |
+| 8 | ✅ 已修 | 源组初始化拆成「独占→共享」整体重试，`_hasExclusiveControl` 只在成功后赋值 |
 | 10 / 15 | ✅ 已修 | `ActivateStartStop` 用 `try/finally` 恢复按钮；`OnEngineStopped` 统一走 `SetRunningVisual(false)` |
-| 11 | ✅ 已修 | 托盘图标按 alpha 生成 AND 掩码（`SetBitmapBits`），透明区不再发黑 |
-| 12 | ✅ 已修 | 共享图标显式标记 `_ownsIcon = false`，不再靠句柄值判断 |
-| 13 | ✅ 已修 | `Closed` 里解绑 `AppWindow.Closing`，杜绝关闭流程重入 |
-| 16 | ✅ 已修 | 引擎收尾先摘掉 `_camera.Diag` 再 `DisposeAsync` |
-| 17 | ✅ 已修 | 删掉 `lastSeenPerson` / `lastLuma` / `lightSurging` 死变量 |
-| 18 | ✅ 已修 | `IdleLockSeconds` 纳入读写设置，默认 120→60（与界面「提前 10 秒提醒」一致） |
-| 19 | ✅ 已修 | 久坐分钟数改为 `EngineParams.SedentaryReminderMinutes`，从设置读写 |
-| 4 | ⬜ 待决策 | 环境光正反馈需改采样区域，必须实机调参 |
-| 14 | ⬜ 部分 | 已用「引擎启动即释放手动覆盖」缓解；彻底方案需全局单实例（待定） |
+| 10 | ✅ 已修 | 托盘图标按 alpha 生成 AND 掩码（`SetBitmapBits`），透明区不再发黑 |
+| 11 | ✅ 已修 | 共享图标显式标记 `_ownsIcon = false`，不再靠句柄值判断 |
+| 12 | ✅ 已修 | `Closed` 里解绑 `AppWindow.Closing`，杜绝关闭流程重入 |
+| 15 | ✅ 已修 | 引擎收尾先摘掉 `_camera.Diag` 再 `DisposeAsync` |
+| 16 | ✅ 已修 | 删掉 `lastSeenPerson` / `lastLuma` / `lightSurging` 死变量 |
+| 17 | ✅ 已修 | `IdleLockSeconds` 纳入读写设置，默认 120→60（与界面「提前 10 秒提醒」一致） |
+| 18 | ✅ 已修 | 久坐分钟数改为 `EngineParams.SedentaryReminderMinutes`，从设置读写 |
+| 3 | ⬜ 待决策 | 环境光正反馈需改采样区域，必须实机调参 |
+| 13 | ⬜ 部分 | 已用「引擎启动即释放手动覆盖」缓解；彻底方案需全局单实例（待定） |
 
 ---
 
@@ -52,34 +51,33 @@
 | 编号 | 问题 | 严重度 | 影响面 | 修复量 |
 |---|---|---|---|---|
 | 1 | `BrightnessOverride` 从不释放，退出后可能锁死系统亮度 | 🔴 高 | 功能 / 系统 | 小 |
-| 2 | 停止引擎 / 退出程序会 Kill 掉 LightBulb | 🔴 高 | 误伤他人软件 | 小 |
-| 3 | 人脸位置调亮度：每 3 轮 ±5%，无死区无上限累计 | 🔴 高 | 核心功能 | 中 |
-| 4 | 环境光正反馈：全画面平均亮度（脸自己就是光源） | 🔴 高 | 核心功能 | 中 |
-| 5 | `smoothLuma` / EMA 算完不用，平滑滑块是假控件 | 🔴 高 | 参数失效 | 小 |
-| 6 | `noFaceConfirmed` 只会被置 true，不会因取帧失败复位 | 🟠 中 | 自动锁屏 | 小 |
-| 7 | `GetIdleSeconds()` 的 `TickCount` 回绕 | 🟠 中 | 自动锁屏 | 小 |
-| 8 | 摄像头预览 `SetBitmapAsync` 后立刻 `Dispose` 源位图 | 🟠 中 | 预览画面 | 小 |
-| 9 | `_hasExclusiveControl` 在回退路径上状态错误 | 🟠 中 | 摄像头打开 | 小 |
-| 10 | 引擎启动失败时"开始"按钮有一段假死 | 🟠 中 | 交互 | 小 |
-| 11 | 托盘图标 alpha 不生效（可能发黑/整块不透明） | 🟠 中 | 观感 | 小 |
-| 12 | `LoadIcon` 共享句柄被当成自有图标 | 🟡 低 | GDI 泄漏 | 小 |
-| 13 | 构造期/关闭期的 `_allowWindowClose` 读写竞争 | 🟡 低 | 关闭流程 | 小 |
-| 14 | 两个 `BrightnessOverride` 实例互相顶替 | 🟡 低 | 手动亮度 | 中 |
-| 15 | 引擎失败提前 return，`StartStopButton` 未恢复 | 🟡 低 | 交互 | 小 |
-| 16 | `_camera.Diag` 回调在窗口关闭后仍 `TryEnqueue` | 🟡 低 | 稳定性 | 小 |
-| 17 | 死变量 `lastSeenPerson` / 冗余 `faceY` 读取 | ⚪ 清理 | — | 小 |
-| 18 | `IdleLockSeconds` 既无 UI 也不读设置，硬编码 120 | ⚪ 清理 | 可配置性 | 小 |
-| 19 | 久坐提醒 45 分钟硬编码 | ⚪ 清理 | 可配置性 | 小 |
-| **20** | **摄像头选源取"第一个可用"，选中手机虚拟摄像头** | **🔴 高** | **核心功能** | **小** |
-| **21** | **退出时 `StopAsync()` 未 await，覆盖/摄像头不释放** | **🔴 高** | **系统亮度被锁死** | **小** |
-| **22** | **开机自动启动失败时按钮卡在"停止"** | **🟠 中** | **交互** | **小** |
-| **23** | **隐藏到托盘时锁屏提醒弹窗可能抛异常** | **🟡 低** | **稳定性** | **小** |
+| 2 | 人脸位置调亮度：每 3 轮 ±5%，无死区无上限累计 | 🔴 高 | 核心功能 | 中 |
+| 3 | 环境光正反馈：全画面平均亮度（脸自己就是光源） | 🔴 高 | 核心功能 | 中 |
+| 4 | `smoothLuma` / EMA 算完不用，平滑滑块是假控件 | 🔴 高 | 参数失效 | 小 |
+| 5 | `noFaceConfirmed` 只会被置 true，不会因取帧失败复位 | 🟠 中 | 自动锁屏 | 小 |
+| 6 | `GetIdleSeconds()` 的 `TickCount` 回绕 | 🟠 中 | 自动锁屏 | 小 |
+| 7 | 摄像头预览 `SetBitmapAsync` 后立刻 `Dispose` 源位图 | 🟠 中 | 预览画面 | 小 |
+| 8 | `_hasExclusiveControl` 在回退路径上状态错误 | 🟠 中 | 摄像头打开 | 小 |
+| 9 | 引擎启动失败时"开始"按钮有一段假死 | 🟠 中 | 交互 | 小 |
+| 10 | 托盘图标 alpha 不生效（可能发黑/整块不透明） | 🟠 中 | 观感 | 小 |
+| 11 | `LoadIcon` 共享句柄被当成自有图标 | 🟡 低 | GDI 泄漏 | 小 |
+| 12 | 构造期/关闭期的 `_allowWindowClose` 读写竞争 | 🟡 低 | 关闭流程 | 小 |
+| 13 | 两个 `BrightnessOverride` 实例互相顶替 | 🟡 低 | 手动亮度 | 中 |
+| 14 | 引擎失败提前 return，`StartStopButton` 未恢复 | 🟡 低 | 交互 | 小 |
+| 15 | `_camera.Diag` 回调在窗口关闭后仍 `TryEnqueue` | 🟡 低 | 稳定性 | 小 |
+| 16 | 死变量 `lastSeenPerson` / 冗余 `faceY` 读取 | ⚪ 清理 | — | 小 |
+| 17 | `IdleLockSeconds` 既无 UI 也不读设置，硬编码 120 | ⚪ 清理 | 可配置性 | 小 |
+| 18 | 久坐提醒 45 分钟硬编码 | ⚪ 清理 | 可配置性 | 小 |
+| **19** | **摄像头选源取"第一个可用"，选中手机虚拟摄像头** | **🔴 高** | **核心功能** | **小** |
+| **20** | **退出时 `StopAsync()` 未 await，覆盖/摄像头不释放** | **🔴 高** | **系统亮度被锁死** | **小** |
+| **21** | **开机自动启动失败时按钮卡在"停止"** | **🟠 中** | **交互** | **小** |
+| **22** | **隐藏到托盘时锁屏提醒弹窗可能抛异常** | **🟡 低** | **稳定性** | **小** |
 
 ---
 
 ## 🔴 高优先级
 
-### 21. 退出时 `StopAsync()` 未 await，亮度覆盖与摄像头不释放（第二轮发现）
+### 20. 退出时 `StopAsync()` 未 await，亮度覆盖与摄像头不释放（第二轮发现）
 
 **位置**：[MainWindow.xaml.cs:150](<Project1/BrightnessAuto/MainWindow.xaml.cs#L150>)（修复前）
 
@@ -115,7 +113,7 @@ finally
 
 ---
 
-### 20. 摄像头选源取"第一个可用"，选中了手机虚拟摄像头（实机发现）
+### 19. 摄像头选源取"第一个可用"，选中了手机虚拟摄像头（实机发现）
 
 **位置**：[CameraLuma.cs:58-72](<Project1/BrightnessAuto/Services/CameraLuma.cs#L58-L72>)（修复前）
 
@@ -154,7 +152,7 @@ MediaCapture 独占模式就绪
 
 ## 🟠 中优先级
 
-### 22. 开机自动启动失败时，按钮卡在"停止"（第二轮发现）
+### 21. 开机自动启动失败时，按钮卡在"停止"（第二轮发现）
 
 **位置**：[MainWindow.xaml.cs:982](<Project1/BrightnessAuto/MainWindow.xaml.cs#L982>) + `ActivateStartStop`（修复前）
 
@@ -172,7 +170,7 @@ MediaCapture 独占模式就绪
 
 ## 🟡 低优先级
 
-### 23. 隐藏到托盘时，锁屏提醒弹窗可能抛异常（第二轮发现）
+### 22. 隐藏到托盘时，锁屏提醒弹窗可能抛异常（第二轮发现）
 
 **位置**：[MainWindow.xaml.cs:1911](<Project1/BrightnessAuto/MainWindow.xaml.cs#L1911>)（修复前）
 
@@ -212,23 +210,7 @@ if (laptop.IsInvalid)
 
 ---
 
-### 2. 停止引擎 / 退出程序会 Kill 掉 LightBulb
-
-**位置**：[MainWindow.xaml.cs:149-155](<Project1/BrightnessAuto/MainWindow.xaml.cs#L149-L155>)、[:1661-1667](<Project1/BrightnessAuto/MainWindow.xaml.cs#L1661-L1667>)、[App.xaml.cs:26-35](<Project1/BrightnessAuto/App.xaml.cs#L26-L35>)
-
-```csharp
-// L1661-1667：点"停止"时
-foreach (var p in Process.GetProcessesByName("LightBulb"))
-    p.Kill();
-```
-
-**问题**：LightBulb 是独立的第三方色温软件，跟"停止自动调亮度"没有任何因果关系。三处 Kill 全部无条件执行，用户没启动过它也会被杀，而且是强杀（无保存机会）。
-
-**修复方向**：删掉这三处 Kill。若确实想让"本程序启动的" LightBulb 随程序退出，需要先记录自己启动的 PID，且只 Kill 自己拉起来的那个。
-
----
-
-### 3. 人脸位置调亮度：每 3 轮 ±5%，无死区、无上限累计
+### 2. 人脸位置调亮度：每 3 轮 ±5%，无死区、无上限累计
 
 **位置**：[AutoBrightnessEngine.cs:289-301](<Project1/BrightnessAuto/Services/AutoBrightnessEngine.cs#L289-L301>)
 
@@ -262,7 +244,7 @@ if (faceY.HasValue && !isDimming)
 
 ---
 
-### 4. 环境光正反馈：测的是整机画面平均亮度
+### 3. 环境光正反馈：测的是整机画面平均亮度
 
 **位置**：[CameraLuma.cs:424-465](<Project1/BrightnessAuto/Services/CameraLuma.cs#L424-L465>)、[AutoBrightnessEngine.cs:207-219](<Project1/BrightnessAuto/Services/AutoBrightnessEngine.cs#L207-L219>)
 
@@ -295,7 +277,7 @@ private static double AverageGray(SoftwareBitmap gray)
 
 ---
 
-### 5. `smoothLuma` / EMA 算完不用，平滑滑块是假控件
+### 4. `smoothLuma` / EMA 算完不用，平滑滑块是假控件
 
 **位置**：[AutoBrightnessEngine.cs:214-219](<Project1/BrightnessAuto/Services/AutoBrightnessEngine.cs#L214-L219>)
 
@@ -315,7 +297,7 @@ int target = MapLumaToBrightness(luma, minB, maxB, snapForSample);            //
 
 ## 🟠 中优先级
 
-### 6. `noFaceConfirmed` 只会被置 true，不会因取帧失败复位
+### 5. `noFaceConfirmed` 只会被置 true，不会因取帧失败复位
 
 **位置**：[AutoBrightnessEngine.cs:314-330](<Project1/BrightnessAuto/Services/AutoBrightnessEngine.cs#L314-L330>)、[:354-358](<Project1/BrightnessAuto/Services/AutoBrightnessEngine.cs#L354-L358>)
 
@@ -333,7 +315,7 @@ else if (faceResult != null && !hasFace)
 
 ---
 
-### 7. `GetIdleSeconds()` 的 `TickCount` 回绕
+### 6. `GetIdleSeconds()` 的 `TickCount` 回绕
 
 **位置**：[AutoBrightnessEngine.cs:34-39](<Project1/BrightnessAuto/Services/AutoBrightnessEngine.cs#L34-L39>)
 
@@ -347,7 +329,7 @@ return (uint)(Environment.TickCount - lii.dwTime) / 1000;
 
 ---
 
-### 8. 摄像头预览：`SetBitmapAsync` 后立刻 `Dispose` 源位图
+### 7. 摄像头预览：`SetBitmapAsync` 后立刻 `Dispose` 源位图
 
 **位置**：[MainWindow.xaml.cs:1245-1257](<Project1/BrightnessAuto/MainWindow.xaml.cs#L1245-L1257>)
 
@@ -367,7 +349,7 @@ if (frame != null && _cameraPreviewSource != null)
 
 ---
 
-### 9. `_hasExclusiveControl` 在回退路径上状态错误
+### 8. `_hasExclusiveControl` 在回退路径上状态错误
 
 **位置**：[CameraLuma.cs:85-97](<Project1/BrightnessAuto/Services/CameraLuma.cs#L85-L97>)
 
@@ -394,7 +376,7 @@ else
 
 ---
 
-### 10. 引擎启动失败时"开始"按钮有一段假死
+### 9. 引擎启动失败时"开始"按钮有一段假死
 
 **位置**：[MainWindow.xaml.cs:1669-1675](<Project1/BrightnessAuto/MainWindow.xaml.cs#L1669-L1675>)
 
@@ -411,7 +393,7 @@ StartStopButton.IsEnabled = true;      // 只有 StartAsync 返回后才恢复
 
 ---
 
-### 11. 托盘图标 alpha 不生效（可能发黑/整块不透明）
+### 10. 托盘图标 alpha 不生效（可能发黑/整块不透明）
 
 **位置**：[TrayIcon.cs:99-116](<Project1/BrightnessAuto/Controls/TrayIcon.cs#L99-L116>)
 
@@ -432,7 +414,7 @@ return CreateIconIndirect(ref info);
 
 ## 🟡 低优先级
 
-### 12. `LoadIcon` 共享句柄被当成自有图标
+### 11. `LoadIcon` 共享句柄被当成自有图标
 
 **位置**：[TrayIcon.cs:56-59](<Project1/BrightnessAuto/Controls/TrayIcon.cs#L56-L59>)、[:221-225](<Project1/BrightnessAuto/Controls/TrayIcon.cs#L221-L225>)
 
@@ -449,7 +431,7 @@ if (!_ownsIcon)
 
 ---
 
-### 13. 构造期/关闭期的 `_allowWindowClose` 读写竞争
+### 12. 构造期/关闭期的 `_allowWindowClose` 读写竞争
 
 **位置**：[MainWindow.xaml.cs:143-158](<Project1/BrightnessAuto/MainWindow.xaml.cs#L143-L158>)、[:217-273](<Project1/BrightnessAuto/MainWindow.xaml.cs#L217-L273>)
 
@@ -459,7 +441,7 @@ if (!_ownsIcon)
 
 ---
 
-### 14. 两个 `BrightnessOverride` 实例互相顶替
+### 13. 两个 `BrightnessOverride` 实例互相顶替
 
 **位置**：[BrightnessController.cs:36-48](<Project1/BrightnessAuto/Services/BrightnessController.cs#L36-L48>)
 
@@ -469,13 +451,13 @@ if (!_ownsIcon)
 
 ---
 
-### 15. 引擎失败提前 return，`StartStopButton` 未恢复
+### 14. 引擎失败提前 return，`StartStopButton` 未恢复
 
 见第 10 条，两者是同一处代码的两种表现（一个是超时窗口期，一个是彻底失败时的状态残留）。
 
 ---
 
-### 16. `_camera.Diag` 回调在窗口关闭后仍 `TryEnqueue`
+### 15. `_camera.Diag` 回调在窗口关闭后仍 `TryEnqueue`
 
 **位置**：[AutoBrightnessEngine.cs:151](<Project1/BrightnessAuto/Services/AutoBrightnessEngine.cs#L151>)、[MainWindow.xaml.cs:1705](<Project1/BrightnessAuto/MainWindow.xaml.cs#L1705>)
 
@@ -485,13 +467,13 @@ if (!_ownsIcon)
 
 ---
 
-### 17. 死变量 / 冗余读取
+### 16. 死变量 / 冗余读取
 
 **位置**：[AutoBrightnessEngine.cs:174](<Project1/BrightnessAuto/Services/AutoBrightnessEngine.cs#L174>)（`lastSeenPerson` 只写不读）、[:265](<Project1/BrightnessAuto/Services/AutoBrightnessEngine.cs#L265>)（`faceY` 取出后仅一处使用）、[CameraLuma.cs:340-368](<Project1/BrightnessAuto/Services/CameraLuma.cs#L340-L368>)（`bitmap` / `gray` 的释放路径靠 `ReferenceEquals` 兜底，异常路径下 `bitmap` 未保证释放）。
 
 ---
 
-### 18. `IdleLockSeconds` 既无 UI 也不读设置
+### 17. `IdleLockSeconds` 既无 UI 也不读设置
 
 **位置**：[EngineParams.cs:94](<Project1/BrightnessAuto/Services/EngineParams.cs#L94>)
 
@@ -503,7 +485,7 @@ public int IdleLockSeconds { get; set; } = 120;
 
 ---
 
-### 19. 久坐提醒 45 分钟硬编码
+### 18. 久坐提醒 45 分钟硬编码
 
 **位置**：[AutoBrightnessEngine.cs:63](<Project1/BrightnessAuto/Services/AutoBrightnessEngine.cs#L63>)、[:306](<Project1/BrightnessAuto/Services/AutoBrightnessEngine.cs#L306>)
 
@@ -515,15 +497,16 @@ public int IdleLockSeconds { get; set; } = 120;
 
 - **测试包堆积**：`Project1/BrightnessAuto/AppPackages/` 下有 `3.1.19.0` ~ `3.1.23.0` 五个 Test 包，每个都带 4 份 `Microsoft.WindowsAppRuntime.1.7.msix`（约 91 MB/包），累计十几 GB，建议只留最新一个。
 - **`startupTask Enabled="false"`**：清单里是禁用，代码走 `RequestEnableAsync` 动态开启，语义是对的——注意首次安装不会自启是预期行为，别当成 bug 排查。
-- **`App.xaml.cs` 自动拉起 LightBulb**：路径 `C:\Program Files (x86)\LightBulb\LightBulb.exe` 硬编码，且是在 `OnLaunched` 里同步 `Process.Start`。这一段和第 2 条的 Kill 是一对，建议整体重新设计成"可选联动"。
+- **`App.xaml.cs` 自动拉起 LightBulb**：路径 `C:\Program Files (x86)\LightBulb\LightBulb.exe` 硬编码，且是在 `OnLaunched` 里同步 `Process.Start`，未询问用户就启动第三方软件。建议做成设置里的「联动色温软件」开关，路径可配、默认关闭。
 
 ---
 
 ## 建议修复顺序
 
-1. **第 2 条**（删 Kill）— 一行删除级改动，风险最低，先止血；
-2. **第 1 条**（Dispose override）— 影响系统行为，必须修；
-3. **第 5 条**（平滑滑块失效）— 改动一行，立刻让参数生效；
-4. **第 3、4 条**（人脸偏移 + 正反馈）— 核心算法，需要改完实测调参；
-5. **第 6、7、8、9 条**— 稳定性问题，逐个补；
-6. 其余低优先级与清理项，可以合并到一次版本里。
+1. **第 1 条**（Dispose override）— 影响系统行为，必须修；
+2. **第 4 条**（平滑滑块失效）— 改动一行，立刻让参数生效；
+3. **第 2、3 条**（人脸偏移 + 正反馈）— 核心算法，需要改完实测调参；
+4. **第 5、6、7、8 条**— 稳定性问题，逐个补；
+5. 其余低优先级与清理项，可以合并到一次版本里。
+
+> 注：原先排在第 1 位的「停止/退出时 Kill 掉 LightBulb」条目已按作者要求移出清单（该项代码改动仍然保留）。
