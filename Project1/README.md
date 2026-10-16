@@ -4,12 +4,19 @@
 
 没有环境光传感器的笔记本也能用——把摄像头当「眼睛」，亮了调亮、暗了调暗。
 
+> 📖 **完整文档（含构建踩坑、参数说明、FAQ）已移至仓库根目录 [README.md](../README.md)**，
+> 本文件保留早期版本说明。
+
 ## 功能
 
 - **摄像头测光**：打开摄像头抓帧，计算平均亮度（0–255）
 - **自动调亮度**：经 EMA 平滑 + 伽马曲线映射后，通过 WMI 设置屏幕亮度
+- **测光摄像头可选**：优先内置摄像头、避开手机投屏等虚拟设备，也可手动指定
 - **可调参数**：检测间隔、亮度上下限、死区、过渡时间、平滑系数、强光跳满阈值
-- **现代界面**：WinUI 3 卡片布局、Acrylic 磨砂、浅色/深色主题、悬停光影
+- **插电 / 电池双策略**：跟随电源自动切换，拔插无需重启
+- **无人自动锁屏**：人脸检测 + 键鼠空闲判定，锁屏前 10 秒倒计时提醒
+- **久坐提醒**：按真实时间累计（默认 45 分钟）
+- **现代界面**：WinUI 3 卡片布局、Acrylic 磨砂、浅色/深色主题、悬停光影、系统托盘
 - **权限友好**：首次启动引导摄像头授权，失败时有诊断日志
 
 ## 系统要求
@@ -40,15 +47,15 @@
 ## 仓库结构
 
 ```
-.
+Project1/
 ├── BrightnessAuto/              # WinUI 3 应用
 │   ├── Services/                # 测光 / 亮度 / 调节引擎
-│   ├── Controls/                # 双环仪表等自定义控件
+│   ├── Controls/                # 双环仪表、托盘图标等自定义控件
 │   ├── Assets/                  # 图标与启动图
 │   ├── Packaging/证书.cer       # 安装用公钥证书
 │   ├── App.xaml(.cs)
 │   ├── MainWindow.xaml(.cs)
-│   ├── Package.appxmanifest
+│   ├── Package.appxmanifest     # 版本号在这里
 │   └── BrightnessAuto.csproj
 ├── Project1.sln
 └── README.md
@@ -71,23 +78,26 @@
 
 ```powershell
 # 需要 .NET 9 SDK + Windows 10/11 SDK
-cd BrightnessAuto
+cd Project1/BrightnessAuto
 dotnet build -c Release -p:Platform=x64
 ```
 
 打 MSIX 安装包（需本机已导入签名证书）：
 
 ```powershell
-cd BrightnessAuto
+cd Project1/BrightnessAuto
 dotnet build -c Release -p:Platform=x64 `
   -p:GenerateAppxPackageOnBuild=true `
-  -p:UapAppxPackageBuildMode=SideloadOnly `
   -p:AppxBundle=Never `
   -p:AppxPackageSigningEnabled=true `
   -p:PackageCertificateThumbprint=<你的证书指纹>
 ```
 
 产物在 `BrightnessAuto\AppPackages\`。
+
+> ⚠️ 必须加 `-p:GenerateAppxPackageOnBuild=true`，只开签名开关不会出包。
+> 版本号由 `Package.appxmanifest` 的 `<Identity Version>` 决定，传 `-p:AppxPackageVersion` 无效。
+> 构建异常（`input.json` 访问被拒 / XAML 生成文件重复定义）时先删 `obj/`、`bin/`。
 
 > 签名证书需事先导入当前用户证书存储。仓库只包含公钥 `Packaging\证书.cer`，**不要提交带私钥的 `.pfx`**。
 
@@ -133,4 +143,4 @@ A: 按提示安装，或从 https://aka.ms/windowsappsdk 下载 x64 Runtime。
 
 ---
 
-**显示名称**：环境光自动亮度 · **包标识**：`BrightnessAuto.Dev` · **版本**：2.0.0.0
+**显示名称**：环境光自动亮度 · **包标识**：`BrightnessAuto.Dev` · **版本**：3.1.27.0
