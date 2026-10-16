@@ -1,0 +1,44 @@
+# Build outputs
+**/bin/
+**/obj/
+**/AppPackages/
+**/BundleArtifacts/
+**/.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Compiled binaries
+*.exe
+*.obj
+*.pdb
+*.ilk
+*.iobj
+*.ipdb
+*.exp
+*.lib
+*.dll
+*.appx
+*.msix
+*.msixbundle
+*.appxbundle
+
+# Certificates with private keys (never commit)
+*.pfx
+*.p12
+*.key
+
+# Local tooling / IDE
+.claude/
+*.DotSettings.user
+
+# OS junk
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Logs / temp
+*.log
+out.txt
+*.tmp

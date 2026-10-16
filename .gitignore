@@ -1,0 +1,58 @@
+# 构建产物
+**/bin/
+**/obj/
+**/AppPackages/
+**/BundleArtifacts/
+**/.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+x64/
+ARM64/
+
+# 编译产物
+*.exe
+*.obj
+*.pdb
+*.ilk
+*.iobj
+*.ipdb
+*.exp
+*.lib
+*.dll
+*.appx
+*.msix
+*.msixbundle
+*.appxbundle
+*.pri
+*.xbf
+*.appxrecipe
+
+# 含私钥的证书(绝不提交)
+*.pfx
+*.p12
+*.key
+*.snk
+
+# 本地工具 / IDE 配置
+.claude/
+.codex/
+.agents/
+*.DotSettings.user
+
+# 系统垃圾
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# 日志 / 临时文件
+*.log
+out.txt
+*.tmp
+~$*
+
+# 本地构建/打包临时目录
+.objtmp/
+.build/
+.pkg/

@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>BrightnessAuto</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x64</Platforms>
+    <!-- 固定 RID, 让 Bootstrap 原生 DLL 落在 exe 同目录 -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <UseWinUI>true</UseWinUI>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <!--
+      MSIX 打包 + Bootstrap 初始化:
+      - 关闭 DeploymentManager (未打包直接跑 exe 时会 REGDB_E_CLASSNOTREG 闪退)
+      - Bootstrap + OnPackageIdentity_NoOp: 已安装 MSIX 包身份下跳过引导
+      - OnNoMatch_ShowUI: 未装 Windows App Runtime 时弹安装提示
+    -->
+    <WindowsPackageType>MSIX</WindowsPackageType>
+    <WindowsAppSdkDeploymentManagerInitialize>false</WindowsAppSdkDeploymentManagerInitialize>
+    <WindowsAppSdkBootstrapInitialize>true</WindowsAppSdkBootstrapInitialize>
+    <WindowsAppSDKBootstrapAutoInitializeOptions_OnNoMatch_ShowUI>true</WindowsAppSDKBootstrapAutoInitializeOptions_OnNoMatch_ShowUI>
+    <WindowsAppSDKBootstrapAutoInitializeOptions_OnPackageIdentity_NoOp>true</WindowsAppSDKBootstrapAutoInitializeOptions_OnPackageIdentity_NoOp>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <!-- 签名用当前用户证书存储中的 CN=BrightnessAuto (thumbprint), 避免 PFX 密码导入问题.
+         可通过环境变量 PackageCertificateThumbprint 覆盖, 方便换机器编译. -->
+    <AppxPackageSigningEnabled>true</AppxPackageSigningEnabled>
+    <PackageCertificateThumbprint Condition="'$(PackageCertificateThumbprint)' == ''">FD69E44D3068E56E1D7D92047D915A307D7FABFF</PackageCertificateThumbprint>
+    <GenerateAppInstallerFile>false</GenerateAppInstallerFile>
+    <AppxAutoIncrementPackageRevision>false</AppxAutoIncrementPackageRevision>
+    <AppxBundle>Never</AppxBundle>
+    <AppxPackageDir>$(MSBuildProjectDirectory)\AppPackages\</AppxPackageDir>
+    <DefaultLanguage>zh-CN</DefaultLanguage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.7.260208005" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.22621.756" />
+    <PackageReference Include="System.Management" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Manifest Include="$(ApplicationManifest)" />
+  </ItemGroup>
+
+  <!-- 证书不打进输出, 仅用于签名 -->
+  <ItemGroup>
+    <None Include="Packaging\BrightnessAuto.pfx" />
+    <None Include="Packaging\证书.cer" />
+  </ItemGroup>
+
+</Project>

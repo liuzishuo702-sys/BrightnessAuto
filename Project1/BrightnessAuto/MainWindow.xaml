@@ -1,0 +1,681 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="BrightnessAuto.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:BrightnessAuto.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <!-- 背景透明，让 Window 的 Mica 云母背景透出；
+         上层用低透明度中性灰保持 Win10 界面的清晰层级。 -->
+    <!-- 不用 ThemeShadow + Translation.Z: 那会给内容加透视投影, 视觉位置与命中区错开,
+         导致按钮点不动(键盘却能触发). Win10 本身是平面设计, 用 1px 描边区分层次即可. -->
+    <Grid x:Name="RootGrid" Background="Transparent">
+
+        <!-- 云母调色层：保留壁纸色温，但不让内容区发花。 -->
+        <Border Background="{ThemeResource AppScrimBrush}" IsHitTestVisible="False" />
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- 左侧汉堡按钮独立于拖拽区，确保自定义标题栏不会吞掉点击。 -->
+            <Grid Grid.Row="0" Height="48" Background="{ThemeResource AppTitleBarBrush}">
+                <Grid x:Name="AppTitleBar" Margin="50,0,0,0" Background="Transparent">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE706;" FontSize="15"
+                                  Foreground="{ThemeResource AppAccentBrush}" />
+                        <TextBlock Text="环境光自动亮度" FontSize="12" Margin="10,0,0,0"
+                                   Foreground="{ThemeResource AppTextBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="v3.1.9 Dev" FontSize="12" Margin="10,0,0,0"
+                                   Foreground="{ThemeResource AppTextDimBrush}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+                <Button x:Name="PaneToggleButton" Width="50" Height="48"
+                        HorizontalAlignment="Left" VerticalAlignment="Center"
+                        Background="Transparent" BorderThickness="0" CornerRadius="0"
+                        ToolTipService.ToolTip="展开导航"
+                        Click="OnPaneToggleClick">
+                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE700;" FontSize="16"
+                              Foreground="{ThemeResource AppTextBrush}" />
+                </Button>
+            </Grid>
+
+            <!-- 左侧导航栏 + 内容区 -->
+            <NavigationView x:Name="NavView" Grid.Row="1"
+                            PaneDisplayMode="LeftCompact"
+                            OpenPaneLength="280"
+                            IsPaneOpen="False"
+                            CompactModeThresholdWidth="99999"
+                            ExpandedModeThresholdWidth="99999"
+                            IsBackButtonVisible="Collapsed"
+                            IsSettingsVisible="False"
+                            IsPaneToggleButtonVisible="False"
+                            Background="{ThemeResource AppContentBrush}"
+                            SelectionChanged="OnNavSelectionChanged">
+                <NavigationView.MenuItems>
+                    <NavigationViewItem x:Name="HomeNavItem" Content="主页" Tag="home" IsSelected="True">
+                        <NavigationViewItem.Icon>
+                            <!-- 默认主页字形; 有用户头像后换成 ImageIcon -->
+                            <FontIcon Glyph="&#xE80F;" />
+                        </NavigationViewItem.Icon>
+                    </NavigationViewItem>
+                    <NavigationViewItem Content="调节参数" Tag="settings">
+                        <NavigationViewItem.Icon>
+                            <FontIcon Glyph="&#xE713;" />
+                        </NavigationViewItem.Icon>
+                    </NavigationViewItem>
+                    <NavigationViewItem Content="摄像头" Tag="camera">
+                        <NavigationViewItem.Icon>
+                            <FontIcon Glyph="&#xE722;" />
+                        </NavigationViewItem.Icon>
+                    </NavigationViewItem>
+                    <NavigationViewItem Content="关于" Tag="about">
+                        <NavigationViewItem.Icon>
+                            <FontIcon Glyph="&#xE946;" />
+                        </NavigationViewItem.Icon>
+                    </NavigationViewItem>
+                </NavigationView.MenuItems>
+
+                <!-- 底部主题项：紧凑时仅显示图标，展开后显示文字。 -->
+                <NavigationView.PaneFooter>
+                    <NavigationViewItem x:Name="ThemeButton" Content="切换主题"
+                                        SelectsOnInvoked="False"
+                                        ToolTipService.ToolTip="切换浅色/深色"
+                                        Tapped="OnThemeToggleTapped">
+                        <NavigationViewItem.Icon>
+                            <FontIcon x:Name="ThemeIcon" Glyph="&#xE706;" />
+                        </NavigationViewItem.Icon>
+                    </NavigationViewItem>
+                </NavigationView.PaneFooter>
+
+                <!-- ===== 内容区: 阴影承接层 + 三个视图 ===== -->
+                <Grid Background="Transparent">
+                    <!-- ========== 主页 ========== -->
+                    <ScrollViewer x:Name="HomeView" VerticalScrollBarVisibility="Auto"
+                                  Padding="24,16,24,24">
+                        <StackPanel Spacing="16">
+
+                            <!-- 问候头卡: 左 头像+问候, 右 数字时钟; 悬停光斑由代码附加 -->
+                            <Border x:Name="GreetingCard" Style="{StaticResource AppCardStyle}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16"
+                                                VerticalAlignment="Center">
+                                        <PersonPicture x:Name="HomeAvatar" Width="60" Height="60"
+                                                       DisplayName="User" />
+                                        <StackPanel VerticalAlignment="Center" Spacing="3">
+                                            <TextBlock x:Name="GreetingText" Text="你好!"
+                                                       FontSize="20" FontWeight="SemiBold"
+                                                       Foreground="{ThemeResource AppTextBrush}" />
+                                            <TextBlock x:Name="GreetingSub" Text="欢迎使用 环境光自动亮度"
+                                                       FontSize="13"
+                                                       Foreground="{ThemeResource AppTextDimBrush}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="6" Margin="24,0,20,0">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="70" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="电量" FontSize="12"
+                                                       Foreground="{ThemeResource AppTextDimBrush}"
+                                                       VerticalAlignment="Center" Margin="0,0,8,0" />
+                                            <ProgressBar x:Name="BatteryBar" Grid.Column="1"
+                                                         Minimum="0" Maximum="100" Value="0"
+                                                         Height="6" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="BatteryPercent" Grid.Column="2" Text="—"
+                                                       FontSize="12" Foreground="{ThemeResource AppTextBrush}"
+                                                       VerticalAlignment="Center" Margin="8,0,0,0" />
+                                        </Grid>
+                                        <TextBlock x:Name="BatteryStatus" Text="电源状态读取中"
+                                                   FontSize="11" HorizontalAlignment="Right"
+                                                   Foreground="{ThemeResource AppTextDimBrush}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="6" Margin="0,0,0,0">
+                                        <TextBlock Text="当前时间" FontSize="13" HorizontalAlignment="Center"
+                                                   Foreground="{ThemeResource AppTextDimBrush}" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Style="{StaticResource ClockDigitStyle}">
+                                                <TextBlock x:Name="ClkH1" Text="0" Style="{StaticResource ClockDigitTextStyle}" />
+                                            </Border>
+                                            <Border Style="{StaticResource ClockDigitStyle}">
+                                                <TextBlock x:Name="ClkH2" Text="0" Style="{StaticResource ClockDigitTextStyle}" />
+                                            </Border>
+                                            <TextBlock Text=":" Style="{StaticResource ClockColonStyle}" />
+                                            <Border Style="{StaticResource ClockDigitStyle}">
+                                                <TextBlock x:Name="ClkM1" Text="0" Style="{StaticResource ClockDigitTextStyle}" />
+                                            </Border>
+                                            <Border Style="{StaticResource ClockDigitStyle}">
+                                                <TextBlock x:Name="ClkM2" Text="0" Style="{StaticResource ClockDigitTextStyle}" />
+                                            </Border>
+                                            <TextBlock Text=":" Style="{StaticResource ClockColonStyle}" />
+                                            <Border Style="{StaticResource ClockDigitStyle}">
+                                                <TextBlock x:Name="ClkS1" Text="0" Style="{StaticResource ClockDigitTextStyle}" />
+                                            </Border>
+                                            <Border Style="{StaticResource ClockDigitStyle}">
+                                                <TextBlock x:Name="ClkS2" Text="0" Style="{StaticResource ClockDigitTextStyle}" />
+                                            </Border>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- 区块标题: 实时监控 -->
+                            <TextBlock Text="实时监控" Style="{StaticResource SectionHeaderStyle}"
+                                       Margin="2,6,0,-4" />
+
+                            <!-- 仪表盘卡片: 顶部状态行 + 分隔线 + 双环 -->
+                            <Border x:Name="MonitorCard" Style="{StaticResource AppCardStyle}">
+                                <StackPanel Spacing="16">
+                                    <!-- 状态行: 圆点 + 文字 + 启停按钮 -->
+                                    <Grid>
+                                        <Border Background="{ThemeResource AppSubtleSurfaceBrush}"
+                                                BorderBrush="{ThemeResource AppStrokeBrush}"
+                                                BorderThickness="1" CornerRadius="4" Padding="10,6"
+                                                HorizontalAlignment="Left">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <Ellipse x:Name="StatusDot" Width="8" Height="8"
+                                                         Fill="{ThemeResource AppTextDimBrush}" />
+                                                <TextBlock x:Name="StatusLabel" Text="已停止" FontSize="13"
+                                                           Foreground="{ThemeResource AppTextDimBrush}"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Button x:Name="StartStopButton" Content="开始"
+                                                Style="{StaticResource AppPrimaryButtonStyle}"
+                                                HorizontalAlignment="Right"
+                                                 Background="{ThemeResource AppAccentBrush}"
+                                                ToolTipService.ToolTip="开始/停止 (空格)"
+                                                Click="OnStartStopClick" />
+                                    </Grid>
+                                    <!-- 细分隔线: Win10 卡内分区惯用 1px 线, 而非留白 -->
+                                    <Border Height="1" Background="{ThemeResource AppStrokeBrush}" Margin="-20,0" />
+                                    <TextBlock Text="场景预设" Style="{StaticResource SettingTitleStyle}" Margin="0,16,0,8" />
+                                    <!-- 双环 -->
+                                    <Grid Height="176">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <controls:ArcGauge x:Name="LumaGauge" Grid.Column="0"
+                                                           Label="环境光 (0-255)" BigText="0"
+                                                           Maximum="255" Value="0"
+                                                           TrackBrush="{ThemeResource AppGaugeTrackBrush}">
+                                            <controls:ArcGauge.ArcBrush>
+                                                <SolidColorBrush Color="#FFB900" />
+                                            </controls:ArcGauge.ArcBrush>
+                                        </controls:ArcGauge>
+                                        <controls:ArcGauge x:Name="BriGauge" Grid.Column="1"
+                                                           Label="屏幕亮度" BigText="0%"
+                                                           Maximum="100" Value="0"
+                                                           TrackBrush="{ThemeResource AppGaugeTrackBrush}"
+                                                           ArcBrush="{ThemeResource AppAccentBrush}" />
+                                    </Grid>
+                                    <!-- 手动亮度滑块（自动停止时可用） -->
+                                    <StackPanel x:Name="ManualBrightnessPanel" Spacing="6" Visibility="Collapsed">
+                                        <Grid>
+                                            <TextBlock Text="手动亮度" FontSize="12"
+                                                       Foreground="{ThemeResource AppTextDimBrush}"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock x:Name="ManualBrightnessValue" Text="50%" FontSize="12"
+                                                       Foreground="{ThemeResource AppTextDimBrush}"
+                                                       HorizontalAlignment="Right"
+                                                       VerticalAlignment="Center" />
+                                        </Grid>
+                                        <Slider x:Name="ManualBrightnessSlider" Minimum="0" Maximum="100"
+                                                Value="50" TickFrequency="5"
+                                                ValueChanged="OnManualBrightnessChanged" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 区块标题: 历史趋势 -->
+                            <TextBlock Text="历史趋势" Style="{StaticResource SectionHeaderStyle}"
+                                       Margin="2,6,0,-4" />
+                            <Border x:Name="HistoryCard" Style="{StaticResource AppCardStyle}"
+                                    Height="110" Padding="16,12">
+                                <Grid>
+                                    <Canvas x:Name="HistoryCanvas" SizeChanged="HistoryCanvas_SizeChanged" />
+                                    <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <Border Width="12" Height="2" Background="#FFB900" VerticalAlignment="Center" />
+                                            <TextBlock Text="环境光" FontSize="10" Foreground="{ThemeResource AppTextDimBrush}" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <Border Width="12" Height="2" Background="{ThemeResource AppAccentBrush}" VerticalAlignment="Center" />
+                                            <TextBlock Text="亮度" FontSize="10" Foreground="{ThemeResource AppTextDimBrush}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- 区块标题: 运行日志 -->
+                            <Grid Margin="2,6,0,-4">
+                                <TextBlock Text="运行日志" Style="{StaticResource SectionHeaderStyle}" />
+                                <Button Width="32" Height="30" Padding="0" Background="Transparent"
+                                        BorderThickness="0" ToolTipService.ToolTip="清空日志"
+                                        HorizontalAlignment="Right" VerticalAlignment="Center"
+                                        Click="OnClearLogClick">
+                                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE74D;" FontSize="13" />
+                                </Button>
+                            </Grid>
+                            <Border x:Name="LogCard" Style="{StaticResource AppCardStyle}"
+                                    Height="180" Padding="16,12">
+                                <ScrollViewer x:Name="LogScroll" VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl x:Name="LogList">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="controls:LogEntry">
+                                                <TextBlock Text="{x:Bind Text}" Foreground="{x:Bind Brush}"
+                                                           FontFamily="Consolas" FontSize="12"
+                                                           TextWrapping="NoWrap" Margin="0,2" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                    <!-- ========== 调节参数 ========== -->
+                    <ScrollViewer x:Name="SettingsView" Visibility="Collapsed"
+                                  VerticalScrollBarVisibility="Auto" Padding="24,16,24,24">
+                        <StackPanel Spacing="16">
+                            <TextBlock Text="外观" Style="{StaticResource SectionHeaderStyle}"
+                                       Margin="2,6,0,-4" />
+                            <Border x:Name="AppearanceCard" Style="{StaticResource AppCardStyle}" Padding="20,18">
+                                <StackPanel Spacing="16">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="34" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Grid.Column="0" Glyph="&#xE790;" FontSize="17"
+                                                  Foreground="{ThemeResource AppAccentBrush}" />
+                                        <StackPanel Grid.Column="1" Spacing="2">
+                                            <TextBlock Text="主题色" Style="{StaticResource SettingTitleStyle}" />
+                                            <TextBlock x:Name="AccentColorLabel" Text="经典蓝"
+                                                       Style="{StaticResource SettingDescriptionStyle}" />
+                                        </StackPanel>
+                                        <ComboBox Grid.Column="2" Width="132" SelectedIndex="1"
+                                                  HorizontalAlignment="Right">
+                                            <ComboBoxItem Content="自动" />
+                                            <ComboBoxItem Content="手动" />
+                                        </ComboBox>
+                                    </Grid>
+                                    <Border Height="1" Background="{ThemeResource AppStrokeBrush}" />
+                                    <TextBlock Text="最近使用的颜色" Style="{StaticResource SettingTitleStyle}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button x:Name="AccentBlueButton" Tag="Blue" Background="#0078D7"
+                                                Style="{StaticResource AccentSwatchButtonStyle}"
+                                                ToolTipService.ToolTip="经典蓝" Click="OnAccentColorClick">
+                                            <FontIcon x:Name="AccentBlueCheck" Glyph="&#xE73E;" FontSize="13"
+                                                      Foreground="White" Visibility="Collapsed" />
+                                        </Button>
+                                        <Button x:Name="AccentTealButton" Tag="Teal" Background="#008272"
+                                                Style="{StaticResource AccentSwatchButtonStyle}"
+                                                ToolTipService.ToolTip="青绿色" Click="OnAccentColorClick">
+                                            <FontIcon x:Name="AccentTealCheck" Glyph="&#xE73E;" FontSize="13"
+                                                      Foreground="White" Visibility="Collapsed" />
+                                        </Button>
+                                        <Button x:Name="AccentGreenButton" Tag="Green" Background="#107C10"
+                                                Style="{StaticResource AccentSwatchButtonStyle}"
+                                                ToolTipService.ToolTip="自然绿" Click="OnAccentColorClick">
+                                            <FontIcon x:Name="AccentGreenCheck" Glyph="&#xE73E;" FontSize="13"
+                                                      Foreground="White" Visibility="Collapsed" />
+                                        </Button>
+                                        <Button x:Name="AccentOrangeButton" Tag="Orange" Background="#D83B01"
+                                                Style="{StaticResource AccentSwatchButtonStyle}"
+                                                ToolTipService.ToolTip="活力橙" Click="OnAccentColorClick">
+                                            <FontIcon x:Name="AccentOrangeCheck" Glyph="&#xE73E;" FontSize="13"
+                                                      Foreground="White" Visibility="Collapsed" />
+                                        </Button>
+                                        <Button x:Name="AccentPinkButton" Tag="Pink" Background="#E3008C"
+                                                Style="{StaticResource AccentSwatchButtonStyle}"
+                                                ToolTipService.ToolTip="玫红色" Click="OnAccentColorClick">
+                                            <FontIcon x:Name="AccentPinkCheck" Glyph="&#xE73E;" FontSize="13"
+                                                      Foreground="White" Visibility="Collapsed" />
+                                        </Button>
+                                    </StackPanel>
+                                    <TextBlock Text="Windows 颜色" Style="{StaticResource SettingTitleStyle}" />
+                                    <Grid HorizontalAlignment="Left">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="54" /><ColumnDefinition Width="54" />
+                                            <ColumnDefinition Width="54" /><ColumnDefinition Width="54" />
+                                            <ColumnDefinition Width="54" /><ColumnDefinition Width="54" />
+                                            <ColumnDefinition Width="54" /><ColumnDefinition Width="54" />
+                                            <ColumnDefinition Width="54" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="54" /><RowDefinition Height="54" />
+                                            <RowDefinition Height="54" /><RowDefinition Height="54" />
+                                        </Grid.RowDefinitions>
+                                        <Button Grid.Row="0" Grid.Column="0" Tag="#FFB900" Background="#FFB900" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="0" Grid.Column="1" Tag="#FF8C00" Background="#FF8C00" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="0" Grid.Column="2" Tag="#F7630C" Background="#F7630C" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="0" Grid.Column="3" Tag="#CA5010" Background="#CA5010" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="0" Grid.Column="4" Tag="#E74856" Background="#E74856" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="0" Grid.Column="5" Tag="#E81123" Background="#E81123" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="0" Grid.Column="6" Tag="#EA005E" Background="#EA005E" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="0" Grid.Column="7" Tag="#C30052" Background="#C30052" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="0" Grid.Column="8" Tag="#B4009E" Background="#B4009E" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="1" Grid.Column="0" Tag="#9A0089" Background="#9A0089" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="1" Grid.Column="1" Tag="#8764B8" Background="#8764B8" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="1" Grid.Column="2" Tag="#744DA9" Background="#744DA9" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="1" Grid.Column="3" Tag="#B146C2" Background="#B146C2" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="1" Grid.Column="4" Tag="#881798" Background="#881798" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="1" Grid.Column="5" Tag="#0078D7" Background="#0078D7" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="1" Grid.Column="6" Tag="#0063B1" Background="#0063B1" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="1" Grid.Column="7" Tag="#00B7C3" Background="#00B7C3" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="1" Grid.Column="8" Tag="#038387" Background="#038387" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="2" Grid.Column="0" Tag="#00CC6A" Background="#00CC6A" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="2" Grid.Column="1" Tag="#107C10" Background="#107C10" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="2" Grid.Column="2" Tag="#498205" Background="#498205" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="2" Grid.Column="3" Tag="#486860" Background="#486860" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="2" Grid.Column="4" Tag="#7A7574" Background="#7A7574" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="2" Grid.Column="5" Tag="#5D5A58" Background="#5D5A58" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="2" Grid.Column="6" Tag="#68768A" Background="#68768A" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="2" Grid.Column="7" Tag="#515C6B" Background="#515C6B" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="2" Grid.Column="8" Tag="#767676" Background="#767676" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="3" Grid.Column="0" Tag="#4C4A48" Background="#4C4A48" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="3" Grid.Column="1" Tag="#69797E" Background="#69797E" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="3" Grid.Column="2" Tag="#3B3A39" Background="#3B3A39" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="3" Grid.Column="3" Tag="#647C64" Background="#647C64" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="3" Grid.Column="4" Tag="#4F5D50" Background="#4F5D50" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="3" Grid.Column="5" Tag="#8A795D" Background="#8A795D" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="3" Grid.Column="6" Tag="#7F6A39" Background="#7F6A39" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="3" Grid.Column="7" Tag="#6B665B" Background="#6B665B" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                        <Button Grid.Row="3" Grid.Column="8" Tag="#59665A" Background="#59665A" Style="{StaticResource AccentGridSwatchButtonStyle}" Click="OnPaletteColorClick" />
+                                    </Grid>
+                                    <Border Height="1" Background="{ThemeResource AppStrokeBrush}" />
+                                    <Button Content="自定义颜色..." HorizontalAlignment="Right" Padding="18,6"
+                                            ToolTipService.ToolTip="打开系统颜色选择器" Click="OnCustomColorClick" />
+                                </StackPanel>
+                            </Border>
+                            <TextBlock Text="调节参数" Style="{StaticResource SectionHeaderStyle}"
+                                       Margin="2,6,0,-4" />
+                            <Border x:Name="SettingsCard" Style="{StaticResource AppCardStyle}">
+                                <StackPanel Spacing="12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="34" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="220" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Glyph="&#xE83A;" FontSize="16"
+                                                  Foreground="{ThemeResource AppAccentBrush}"
+                                                  VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                            <TextBlock Text="供电策略" Style="{StaticResource SettingTitleStyle}" />
+                                            <TextBlock Text="选择自动跟随电源，或固定使用一套参数"
+                                                       Style="{StaticResource SettingDescriptionStyle}" />
+                                        </StackPanel>
+                                        <ComboBox x:Name="PowerPolicyCombo" Grid.Column="2"
+                                                  SelectedIndex="0" HorizontalAlignment="Stretch"
+                                                  SelectionChanged="OnPowerPolicyChanged">
+                                            <ComboBoxItem Content="跟随电源自动切换" />
+                                            <ComboBoxItem Content="始终使用插电策略" />
+                                            <ComboBoxItem Content="始终使用电池策略" />
+                                        </ComboBox>
+                                    </Grid>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="34" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="220" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Glyph="&#xE713;" FontSize="16"
+                                                  Foreground="{ThemeResource AppTextDimBrush}"
+                                                  VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                            <TextBlock Text="编辑哪套参数" Style="{StaticResource SettingTitleStyle}" />
+                                            <TextBlock Text="两套参数分别保存，自动切换时各自生效"
+                                                       Style="{StaticResource SettingDescriptionStyle}" />
+                                        </StackPanel>
+                                        <ComboBox x:Name="PowerProfileCombo" Grid.Column="2"
+                                                  SelectedIndex="0" HorizontalAlignment="Stretch"
+                                                  SelectionChanged="OnPowerProfileChanged">
+                                            <ComboBoxItem Content="插电参数" />
+                                            <ComboBoxItem Content="电池参数" />
+                                        </ComboBox>
+                                    </Grid>
+                                    <Border Height="1" Background="{ThemeResource AppStrokeBrush}" />
+                                    <StackPanel x:Name="SlidersPanel" Spacing="2" />
+                                    <Border Height="1" Background="{ThemeResource AppStrokeBrush}" />
+                                    <StackPanel Spacing="4">
+                                        <Grid>
+                                            <TextBlock Text="亮度映射曲线" Style="{StaticResource SectionHeaderStyle}" />
+                                            <TextBlock Text="环境光 → 屏幕亮度" FontSize="11" HorizontalAlignment="Right"
+                                                       Foreground="{ThemeResource AppTextDimBrush}" />
+                                        </Grid>
+                                        <Grid Height="130" Padding="0,4">
+                                            <Canvas x:Name="CurveCanvas" SizeChanged="CurveCanvas_SizeChanged" />
+                                            <TextBlock Text="0" FontSize="9" VerticalAlignment="Bottom"
+                                                       Foreground="{ThemeResource AppTextDimBrush}" />
+                                            <TextBlock Text="255" FontSize="9" VerticalAlignment="Bottom"
+                                                       HorizontalAlignment="Right"
+                                                       Foreground="{ThemeResource AppTextDimBrush}" />
+                                        </Grid>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            <TextBlock Text="启动与后台" Style="{StaticResource SectionHeaderStyle}"
+                                       Margin="2,6,0,-4" />
+                            <Border x:Name="StartupCard" Style="{StaticResource AppCardStyle}">
+                                <StackPanel Spacing="0">
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="34" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Glyph="&#xE7E8;" FontSize="16" Foreground="{ThemeResource AppAccentBrush}" />
+                                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                            <TextBlock Text="开机启动" Style="{StaticResource SettingTitleStyle}" />
+                                            <TextBlock Text="登录 Windows 后自动运行" Style="{StaticResource SettingDescriptionStyle}" />
+                                        </StackPanel>
+                                        <ToggleSwitch x:Name="StartWithWindowsToggle" Grid.Column="2"
+                                                      OffContent="" OnContent=""
+                                                      VerticalAlignment="Center"
+                                                      Toggled="OnStartWithWindowsToggled" />
+                                    </Grid>
+                                    <Border Height="1" Background="{ThemeResource AppStrokeBrush}" />
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="34" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Glyph="&#xE706;" FontSize="16" Foreground="#FFB900" />
+                                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                            <TextBlock Text="自动开始调节" Style="{StaticResource SettingTitleStyle}" />
+                                            <TextBlock Text="应用启动后立即接管屏幕亮度" Style="{StaticResource SettingDescriptionStyle}" />
+                                        </StackPanel>
+                                        <ToggleSwitch x:Name="AutoAdjustToggle" Grid.Column="2"
+                                                      OffContent="" OnContent=""
+                                                      VerticalAlignment="Center"
+                                                      Toggled="OnPreferenceToggled" />
+                                    </Grid>
+                                    <Border Height="1" Background="{ThemeResource AppStrokeBrush}" />
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="34" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Glyph="&#xE7E7;" FontSize="16" Foreground="{ThemeResource AppTextDimBrush}" />
+                                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                            <TextBlock Text="启动后隐藏到托盘" Style="{StaticResource SettingTitleStyle}" />
+                                            <TextBlock Text="保持后台运行，不显示主窗口" Style="{StaticResource SettingDescriptionStyle}" />
+                                        </StackPanel>
+                                        <ToggleSwitch x:Name="LaunchToTrayToggle" Grid.Column="2"
+                                                      OffContent="" OnContent=""
+                                                      VerticalAlignment="Center"
+                                                      Toggled="OnPreferenceToggled" />
+                                    </Grid>
+                                    <Border Height="1" Background="{ThemeResource AppStrokeBrush}" />
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="34" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Glyph="&#xE7E9;" FontSize="16" Foreground="#FFC239" />
+                                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                            <TextBlock Text="无人自动锁屏" Style="{StaticResource SettingTitleStyle}" />
+                                            <TextBlock Text="检测不到人脸且无操作时，锁屏前提醒 10 秒" Style="{StaticResource SettingDescriptionStyle}" />
+                                        </StackPanel>
+                                        <ToggleSwitch x:Name="IdleLockToggle" Grid.Column="2"
+                                                      OffContent="" OnContent=""
+                                                      VerticalAlignment="Center"
+                                                      Toggled="OnIdleLockToggled" />
+                                    </Grid>
+                                    <Border Height="1" Background="{ThemeResource AppStrokeBrush}" />
+                                    <TextBlock Text="场景预设" Style="{StaticResource SettingTitleStyle}" Margin="0,16,0,8" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,4">
+                                        <Button x:Name="PresetOfficeBtn" Click="OnPresetOfficeClick">办公模式</Button>
+                                        <Button x:Name="PresetMovieBtn" Click="OnPresetMovieClick">观影模式</Button>
+                                        <Button x:Name="PresetGameBtn" Click="OnPresetGameClick">游戏模式</Button>
+                                    </StackPanel>
+                                    <Button HorizontalAlignment="Left" Margin="2,14,0,2" Padding="12,6"
+                                            Click="OnResetSettingsClick">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon Glyph="&#xE777;" FontSize="13" />
+                                            <TextBlock Text="恢复默认设置" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                            <TextBlock Text="调高「平滑系数」响应更快, 调低更稳; 「强光跳满」用于强光直射时直接拉到最高亮度。"
+                                       FontSize="12" TextWrapping="Wrap" Margin="2,0"
+                                       Foreground="{ThemeResource AppTextDimBrush}" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- ========== 摄像头预览 ========== -->
+                    <ScrollViewer x:Name="CameraView" Visibility="Collapsed"
+                                  VerticalScrollBarVisibility="Auto" Padding="24,16,24,24">
+                        <StackPanel Spacing="16">
+                            <TextBlock Text="摄像头预览" Style="{StaticResource SectionHeaderStyle}"
+                                       Margin="2,6,0,-4" />
+                            <Border x:Name="CameraCard" Style="{StaticResource AppCardStyle}" Padding="16">
+                                <Grid>
+                                    <Image x:Name="CameraPreviewImage" Stretch="Uniform"
+                                           MaxHeight="360" />
+                                    <Border x:Name="CameraPreviewPlaceholder"
+                                            Background="{ThemeResource AppClockBoxBrush}"
+                                            CornerRadius="4" Padding="20"
+                                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                            <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE722;"
+                                                      FontSize="48" HorizontalAlignment="Center"
+                                                      Foreground="{ThemeResource AppTextDimBrush}" />
+                                            <TextBlock x:Name="CameraPreviewHint"
+                                                       Text="启动引擎后可预览摄像头画面"
+                                                       FontSize="13" HorizontalAlignment="Center"
+                                                       Foreground="{ThemeResource AppTextDimBrush}" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                            <Border x:Name="CameraPickerCard" Style="{StaticResource AppCardStyle}" Padding="16,12">
+                                <StackPanel Spacing="8">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE722;" Style="{StaticResource InfoIconStyle}" />
+                                        <TextBlock Text="测光摄像头:" Style="{StaticResource InfoKeyStyle}" />
+                                    </StackPanel>
+                                    <ComboBox x:Name="CameraPickerCombo" HorizontalAlignment="Stretch"
+                                              SelectionChanged="OnCameraPickerChanged"
+                                              PlaceholderText="自动(推荐用内置摄像头)" />
+                                    <TextBlock Text="默认自动选择内置摄像头并避开虚拟摄像头; 也可手动指定手机等设备。切换后需重新点「开始」生效。"
+                                               FontSize="12" TextWrapping="Wrap"
+                                               Foreground="{ThemeResource AppTextDimBrush}" />
+                                </StackPanel>
+                            </Border>
+                            <Border x:Name="CameraInfoCard" Style="{StaticResource AppCardStyle}" Padding="16,12">
+                                <StackPanel Spacing="6">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE943;" Style="{StaticResource InfoIconStyle}" />
+                                        <TextBlock Text="当前环境光:" Style="{StaticResource InfoKeyStyle}" />
+                                        <TextBlock x:Name="CameraLumaValue" Text="—"
+                                                   Style="{StaticResource InfoValueStyle}" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE706;" Style="{StaticResource InfoIconStyle}" />
+                                        <TextBlock Text="采样说明:" Style="{StaticResource InfoKeyStyle}" />
+                                        <TextBlock Text="对全画面取平均灰度(0-255), 经 EMA 平滑后映射为亮度"
+                                                   Style="{StaticResource InfoValueStyle}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- ========== 关于 ========== -->
+                    <ScrollViewer x:Name="AboutView" Visibility="Collapsed"
+                                  VerticalScrollBarVisibility="Auto" Padding="24,16,24,24">
+                        <StackPanel Spacing="16">
+                            <TextBlock Text="关于" Style="{StaticResource SectionHeaderStyle}"
+                                       Margin="2,6,0,-4" />
+                            <Border x:Name="AboutCard" Style="{StaticResource AppCardStyle}"
+                                    Padding="24,22">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Width="104" Height="104" CornerRadius="3"
+                                            Background="{ThemeResource AppClockBoxBrush}"
+                                            BorderBrush="{ThemeResource AppStrokeBrush}"
+                                            BorderThickness="1"
+                                            VerticalAlignment="Top" Margin="0,4,24,0">
+                                        <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE706;"
+                                                  FontSize="48"
+                                                  Foreground="{ThemeResource AppAccentBrush}" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="4">
+                                        <TextBlock Text="环境光自动亮度" FontSize="24" FontWeight="SemiBold"
+                                                   Foreground="{ThemeResource AppTextBrush}" />
+                                        <TextBlock Text="一个用摄像头感光、自动调节屏幕亮度的小工具"
+                                                   FontSize="13" Margin="0,0,0,12"
+                                                   Foreground="{ThemeResource AppTextDimBrush}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,1">
+                                            <FontIcon Glyph="&#xE787;" Style="{StaticResource InfoIconStyle}" />
+                                            <TextBlock Text="版本:" Style="{StaticResource InfoKeyStyle}" />
+                                            <TextBlock Text="v3.1.9 Dev" Style="{StaticResource InfoValueStyle}" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,1">
+                                            <FontIcon Glyph="&#xE823;" Style="{StaticResource InfoIconStyle}" />
+                                            <TextBlock Text="技术:" Style="{StaticResource InfoKeyStyle}" />
+                                            <TextBlock Text="WinUI 3 · .NET 9 · Media Foundation · WMI"
+                                                       Style="{StaticResource InfoValueStyle}" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,1">
+                                            <FontIcon Glyph="&#xE72E;" Style="{StaticResource InfoIconStyle}" />
+                                            <TextBlock Text="许可:" Style="{StaticResource InfoKeyStyle}" />
+                                            <TextBlock Text="自签名分发 · Some Rights Reserved"
+                                                       Style="{StaticResource InfoValueStyle}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            <TextBlock Text="© 2026 环境光自动亮度. 仅依赖 Windows 自带组件运行。"
+                                       FontSize="12" Margin="2,0"
+                                       Foreground="{ThemeResource AppTextDimBrush}" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </NavigationView>
+        </Grid>
+    </Grid>
+</Window>

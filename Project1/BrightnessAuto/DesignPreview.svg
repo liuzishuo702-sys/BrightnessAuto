@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="720" viewBox="0 0 980 720">
+  <rect width="980" height="720" fill="#182020"/>
+  <rect width="980" height="48" fill="#171b1b"/>
+  <rect y="48" width="220" height="672" fill="#171b1b"/>
+  <text x="24" y="30" fill="#f5f5f5" font-family="Segoe UI" font-size="14">☰</text>
+  <text x="58" y="30" fill="#f5f5f5" font-family="Segoe UI" font-size="13">环境光自动亮度</text>
+  <text x="177" y="30" fill="#9fa7a7" font-family="Segoe UI" font-size="11">v3.0.3</text>
+  <g font-family="Segoe UI" font-size="14" fill="#dfe5e5">
+    <text x="28" y="92">⌂　主页</text>
+    <rect x="12" y="110" width="196" height="42" rx="4" fill="#293232"/>
+    <rect x="12" y="110" width="3" height="42" rx="2" fill="#0078d7"/>
+    <text x="28" y="137">⚙　调节参数</text>
+    <text x="28" y="180">▣　摄像头</text>
+    <text x="28" y="222">ⓘ　关于</text>
+  </g>
+  <text x="252" y="88" fill="#f5f5f5" font-family="Segoe UI" font-size="26">个性化  ›  颜色</text>
+  <rect x="252" y="106" width="690" height="568" rx="6" fill="#2f3434" stroke="#414747"/>
+  <text x="276" y="140" fill="#ffffff" font-family="Segoe UI" font-size="15">◉　主题色</text>
+  <text x="310" y="158" fill="#aeb6b6" font-family="Segoe UI" font-size="12">经典蓝</text>
+  <rect x="800" y="123" width="116" height="36" rx="4" fill="#3a4141"/>
+  <text x="820" y="146" fill="#f5f5f5" font-family="Segoe UI" font-size="13">手动　⌄</text>
+  <line x1="272" y1="178" x2="922" y2="178" stroke="#454b4b"/>
+  <text x="276" y="207" fill="#f5f5f5" font-family="Segoe UI" font-size="13">最近使用的颜色</text>
+  <g>
+    <rect x="276" y="220" width="50" height="50" rx="4" fill="#0078d7" stroke="#ffffff" stroke-width="2"/>
+    <text x="293" y="253" fill="white" font-family="Segoe UI Symbol" font-size="18">✓</text>
+    <rect x="334" y="220" width="50" height="50" rx="4" fill="#008272"/>
+    <rect x="392" y="220" width="50" height="50" rx="4" fill="#107c10"/>
+    <rect x="450" y="220" width="50" height="50" rx="4" fill="#d83b01"/>
+    <rect x="508" y="220" width="50" height="50" rx="4" fill="#e3008c"/>
+  </g>
+  <text x="276" y="302" fill="#f5f5f5" font-family="Segoe UI" font-size="13">Windows 颜色</text>
+  <g>
+    <rect x="276" y="315" width="50" height="50" rx="3" fill="#ffb900"/><rect x="330" y="315" width="50" height="50" rx="3" fill="#ff8c00"/><rect x="384" y="315" width="50" height="50" rx="3" fill="#f7630c"/><rect x="438" y="315" width="50" height="50" rx="3" fill="#ca5010"/><rect x="492" y="315" width="50" height="50" rx="3" fill="#e74856"/><rect x="546" y="315" width="50" height="50" rx="3" fill="#e81123"/><rect x="600" y="315" width="50" height="50" rx="3" fill="#ea005e"/><rect x="654" y="315" width="50" height="50" rx="3" fill="#c30052"/><rect x="708" y="315" width="50" height="50" rx="3" fill="#b4009e"/>
+    <rect x="276" y="369" width="50" height="50" rx="3" fill="#9a0089"/><rect x="330" y="369" width="50" height="50" rx="3" fill="#8764b8"/><rect x="384" y="369" width="50" height="50" rx="3" fill="#744da9"/><rect x="438" y="369" width="50" height="50" rx="3" fill="#b146c2"/><rect x="492" y="369" width="50" height="50" rx="3" fill="#881798"/><rect x="546" y="369" width="50" height="50" rx="3" fill="#0078d7"/><rect x="600" y="369" width="50" height="50" rx="3" fill="#0063b1"/><rect x="654" y="369" width="50" height="50" rx="3" fill="#00b7c3"/><rect x="708" y="369" width="50" height="50" rx="3" fill="#038387"/>
+    <rect x="276" y="423" width="50" height="50" rx="3" fill="#00cc6a"/><rect x="330" y="423" width="50" height="50" rx="3" fill="#107c10"/><rect x="384" y="423" width="50" height="50" rx="3" fill="#498205"/><rect x="438" y="423" width="50" height="50" rx="3" fill="#486860"/><rect x="492" y="423" width="50" height="50" rx="3" fill="#7a7574"/><rect x="546" y="423" width="50" height="50" rx="3" fill="#5d5a58"/><rect x="600" y="423" width="50" height="50" rx="3" fill="#68768a"/><rect x="654" y="423" width="50" height="50" rx="3" fill="#515c6b"/><rect x="708" y="423" width="50" height="50" rx="3" fill="#767676"/>
+    <rect x="276" y="477" width="50" height="50" rx="3" fill="#4c4a48"/><rect x="330" y="477" width="50" height="50" rx="3" fill="#69797e"/><rect x="384" y="477" width="50" height="50" rx="3" fill="#3b3a39"/><rect x="438" y="477" width="50" height="50" rx="3" fill="#647c64"/><rect x="492" y="477" width="50" height="50" rx="3" fill="#4f5d50"/><rect x="546" y="477" width="50" height="50" rx="3" fill="#8a795d"/><rect x="600" y="477" width="50" height="50" rx="3" fill="#7f6a39"/><rect x="654" y="477" width="50" height="50" rx="3" fill="#6b665b"/><rect x="708" y="477" width="50" height="50" rx="3" fill="#59665a"/>
+  </g>
+  <line x1="272" y1="548" x2="922" y2="548" stroke="#454b4b"/>
+  <text x="276" y="580" fill="#f5f5f5" font-family="Segoe UI" font-size="13">自定义颜色</text>
+  <rect x="802" y="560" width="114" height="34" rx="4" fill="#3a4141"/><text x="832" y="582" fill="#f5f5f5" font-family="Segoe UI" font-size="13">查看颜色</text>
+  <text x="276" y="620" fill="#c9d0d0" font-family="Segoe UI" font-size="12">在“开始”和任务栏上显示重点颜色</text>
+  <rect x="870" y="605" width="46" height="22" rx="11" fill="#4b5353"/><circle cx="882" cy="616" r="8" fill="#d9dddd"/>
+  <text x="276" y="654" fill="#c9d0d0" font-family="Segoe UI" font-size="12">在标题栏和窗口边框上显示强调色</text>
+  <rect x="870" y="639" width="46" height="22" rx="11" fill="#4b5353"/><circle cx="882" cy="650" r="8" fill="#d9dddd"/>
+</svg>
