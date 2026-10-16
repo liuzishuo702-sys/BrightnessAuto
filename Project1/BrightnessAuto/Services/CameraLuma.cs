@@ -554,7 +554,18 @@ public sealed class CameraLuma : IAsyncDisposable
         }
     }
 
-    /// <summary>对 Gray8 位图采样求平均值. 按真实 stride 遍历, ArrayPool 复用缓冲区.</summary>
+    /// <summary>
+    /// 估算环境光亮度(0-255): 把画面分成 左带 / 右带 / 下带 三块互不重叠的区域,
+    /// 各求平均后取<b>中位数</b>。
+    ///
+    /// 为什么不用全画面平均: 屏幕照亮的是画面中央的人脸/胸口, 全画面平均会把
+    /// "屏幕有多亮"算进环境光, 形成正反馈 —— 屏幕变亮 → 人脸变亮 → 测得环境光更亮
+    /// → 屏幕更亮, 夜里会一路顶到最高亮度。
+    ///
+    /// 取三块的中位数而不是最大值/平均值: 只要中央(脸)所在的那块被抬高, 它就落在
+    /// 中位数之外被丢弃, 而剩下两块反映的是画面边缘的真实环境照度。
+    /// (侧窗强光/单侧台灯这类真实单向光源仍会被保留, 因为那会同时抬高相邻区域。)
+    /// </summary>
     private static double AverageGray(SoftwareBitmap gray)
     {
         int width = gray.PixelWidth, height = gray.PixelHeight;
@@ -575,22 +586,45 @@ public sealed class CameraLuma : IAsyncDisposable
         {
             gray.CopyToBuffer(pixels.AsBuffer(0, bufSize));
 
+            // 采样步长: 目标约 5 万点以内, 兼顾精度与开销.
             long total = (long)width * height;
             int step = total > 100_000 ? (int)(total / 50_000) : 1;
             if (step < 1) step = 1;
 
-            ulong sum = 0;
-            long count = 0;
+            int bandW = Math.Max(1, width / 4);        // 左右带各占 1/4 宽
+            int bottomTop = height * 3 / 4;           // 下带从 3/4 高处开始
+
+            // 区域 1: 左带(全高)  区域 2: 右带(全高)  区域 3: 下带(全宽)
+            double[] sums = new double[3];
+            long[] counts = new long[3];
+
             for (int y = 0; y < height; y += step)
             {
                 int row = startIndex + y * stride;
+                bool inBottom = y >= bottomTop;
+
                 for (int x = 0; x < width; x += step)
                 {
-                    sum += pixels[row + x];
-                    ++count;
+                    byte px = pixels[row + x];
+                    if (x < bandW) { sums[0] += px; counts[0]++; }              // 左
+                    else if (x >= width - bandW) { sums[1] += px; counts[1]++; } // 右
+                    if (inBottom) { sums[2] += px; counts[2]++; }               // 下
                 }
             }
-            return count == 0 ? -1.0 : (double)sum / count;
+
+            double[] means = new double[3];
+            int valid = 0;
+            for (int i = 0; i < 3; i++)
+            {
+                if (counts[i] > 0) means[valid++] = sums[i] / counts[i];
+            }
+            if (valid == 0) return -1.0;
+            if (valid == 1) return means[0];
+
+            Array.Sort(means, 0, valid);
+            // 中位数: 偶数个取中间两个的均值
+            int mid = valid / 2;
+            return valid % 2 == 1 ? means[mid] : (means[mid - 1] + means[mid]) / 2.0;
         }
         finally
         {

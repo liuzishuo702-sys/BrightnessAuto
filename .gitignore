@@ -56,3 +56,4 @@ out.txt
 .objtmp/
 .build/
 .pkg/
+.probe/

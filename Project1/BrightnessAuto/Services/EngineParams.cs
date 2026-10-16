@@ -101,4 +101,11 @@ public sealed class EngineParams
     /// 允许用户在手机虚拟摄像头与内置摄像头之间手动切换; 下次启动引擎时生效.
     /// </summary>
     public string CameraDeviceId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 启用"人脸位置微调"(抬头调亮 / 低头调暗). 默认<b>关闭</b>:
+    /// 该功能与主亮度映射共用同一个输出, 容易互相打架, 且"抬头≠环境变亮"的假设
+    /// 对多数人并不成立. 想要的话可在设置里打开.
+    /// </summary>
+    public bool FaceTiltAdjustEnabled { get; set; } = false;
 }

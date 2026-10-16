@@ -30,25 +30,31 @@ public sealed class AutoBrightnessEngine
     [DllImport("user32.dll")]
     private static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
 
+    /// <summary>系统启动至今的"无偏"中断时间(毫秒), 不受休眠/待机影响, 64 位不会回绕.</summary>
     [DllImport("kernel32.dll")]
-    private static extern ulong GetTickCount64();
+    private static extern ulong QueryUnbiasedInterruptTime(out ulong unbiasedTime);
 
     /// <summary>
     /// 获取距离最后一次鼠标/键盘输入的秒数.
-    /// LASTINPUTINFO.dwTime 是 32 位无符号 tick(约 49.7 天回绕), 这里用 64 位 tick
-    /// 的高位给它补位, 并把补位后"落在未来"的情况当作回绕回退一个周期,
-    /// 避免长时间运行(>24.9 天)后算出天文数字, 误判成"无人"触发锁屏.
+    ///
+    /// 两者都取"自系统启动以来的毫秒数"同一时间基准:
+    /// - <c>LASTINPUTINFO.dwTime</c> 的低 32 位来自 <c>GetTickCount</c>
+    /// - <c>QueryUnbiasedInterruptTime</c> 给出 64 位无偏时间
+    ///
+    /// 直接相减即可: 无偏时间会剔除系统睡眠, 且不会像 <c>Environment.TickCount</c>
+    /// 那样在 24.9 天后回绕 —— 旧实现正是因此在长时间运行后算出天文数字,
+    /// 把"有人"误判成"无人"从而误锁屏。
     /// </summary>
     private static uint GetIdleSeconds()
     {
         var lii = new LASTINPUTINFO { cbSize = (uint)Marshal.SizeOf<LASTINPUTINFO>() };
-        GetLastInputInfo(ref lii);
+        if (!GetLastInputInfo(ref lii))
+            return 0;
 
-        ulong now = GetTickCount64();
-        ulong mask = uint.MaxValue;
-        ulong last = (now & ~mask) | lii.dwTime;   // 用当前的高 32 位补全低 32 位
-        if (last > now) last -= mask + 1;          // 补位跨过回绕点: 回退一个周期
-        return (uint)((now - last) / 1000);
+        QueryUnbiasedInterruptTime(out ulong now);
+        uint nowLow = (uint)now;                  // 与 dwTime 同为"启动后毫秒"的低 32 位
+        uint elapsedMs = unchecked(nowLow - lii.dwTime);   // 无符号减法天然处理低 32 位回绕
+        return elapsedMs / 1000;
     }
 
     private static bool IsOnBattery()
@@ -76,6 +82,8 @@ public sealed class AutoBrightnessEngine
     private const int FaceOffsetSamplesRequired = 3; // 人脸偏移连续同方向几次才微调
     private const int FaceOffsetStep = 3;            // 每次微调的幅度(%)
     private const int MaxFaceOffset = 15;            // 人脸微调累计上限(%), 防止顶到极限
+    private const int BrightenMargin = 4;            // 调亮比调暗多要求的差值(%), 抑制屏幕自照明正反馈.
+                                                     // 取值偏小以免压制正常调亮; 配合采样取区域中位数已能压住大部分反馈.
 
     private readonly EngineParams _params;
     private CancellationTokenSource? _cts;
@@ -307,7 +315,17 @@ public sealed class AutoBrightnessEngine
                         if (Math.Abs(requested - applied) > MaxSingleStep)
                             requested = applied + Math.Sign(requested - applied) * MaxSingleStep;
 
-                        if (!isDimming && Math.Abs(requested - applied) >= deadband)
+                        // 迟滞(hysteresis): 对于"调亮"要求更大的差值才动作.
+                        // 屏幕自身是画面里最强的光源, 调亮会让测得的环境光偏高,
+                        // 于是又想更亮 —— 单向棘轮效应, 夜里会一路顶到最高亮度.
+                        // 让向上调整比向下更难触发, 就能把这个正反馈压住:
+                        // 每轮最多 12% 的跳变下, 稳定后向上需要的余量大于屏幕带来的增量.
+                        int delta = requested - applied;
+                        bool needsApply = delta >= 0
+                            ? delta >= deadband + BrightenMargin
+                            : -delta >= deadband;
+
+                        if (!isDimming && needsApply)
                         {
                             if (brightness.SetBrightness(requested))
                             {
@@ -352,9 +370,10 @@ public sealed class AutoBrightnessEngine
                             Log?.Invoke($"检测到人, 亮度渐变恢复 {restoreTarget}%");
                         }
                         // 人脸位置微调: 抬头看屏幕略调亮, 低头打字略调暗.
-                        // 必须"连续同方向"才生效(旧实现每轮直接 ±5, 头稍偏就把亮度顶到极限),
-                        // 且累计偏移不超过 MaxFaceOffset, 给主亮度映射留出主导权.
-                        if (faceY.HasValue && !isDimming)
+                        // 默认关闭 —— 它与主亮度映射共用同一个输出, 容易互相打架;
+                        // 需要时在设置里打开. 打开后也必须"连续同方向"才生效,
+                        // 且累计偏移不超过 MaxFaceOffset, 给主映射留出主导权.
+                        if (_params.FaceTiltAdjustEnabled && faceY.HasValue && !isDimming)
                         {
                             int yDir = faceY.Value < 0.3f ? 1 : (faceY.Value > 0.7f ? -1 : 0);
                             if (yDir == 0)

@@ -875,6 +875,7 @@ public sealed partial class MainWindow : Window
             _params.SedentaryReminderMinutes = ReadInt(settings, "SedentaryReminderMinutes",
                 _params.SedentaryReminderMinutes, 5, 240);
             _params.CameraDeviceId = settings["CameraDeviceId"] as string ?? string.Empty;
+            _params.FaceTiltAdjustEnabled = ReadBool(settings, "FaceTiltAdjustEnabled", false);
             _params.EditingBatteryProfile = false;
             PowerPolicyCombo.SelectedIndex = (int)_params.PowerPolicy;
             PowerProfileCombo.SelectedIndex = 0;
@@ -932,6 +933,7 @@ public sealed partial class MainWindow : Window
             values["IdleLockSeconds"] = _params.IdleLockSeconds;
             values["SedentaryReminderMinutes"] = _params.SedentaryReminderMinutes;
             values["CameraDeviceId"] = _params.CameraDeviceId;
+            values["FaceTiltAdjustEnabled"] = _params.FaceTiltAdjustEnabled;
         }
         catch (Exception ex) { Debug.WriteLine($"[MainWindow] 保存偏好失败: {ex.Message}"); }
     }
@@ -975,6 +977,7 @@ public sealed partial class MainWindow : Window
             AutoAdjustToggle.IsOn = _autoAdjustOnLaunch;
             LaunchToTrayToggle.IsOn = _launchToTray;
             IdleLockToggle.IsOn = _params.IdleLockEnabled;
+            FaceTiltToggle.IsOn = _params.FaceTiltAdjustEnabled;
         }
         catch (Exception ex) { Debug.WriteLine($"[MainWindow] 应用启动偏好失败: {ex.Message}"); StartWithWindowsToggle.IsOn = false; }
         finally { _loadingPreferences = false; }
@@ -1034,6 +1037,16 @@ public sealed partial class MainWindow : Window
         if (_loadingPreferences) return;
         _params.IdleLockEnabled = IdleLockToggle.IsOn;
         SavePreferences();
+    }
+
+    private void OnFaceTiltToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loadingPreferences) return;
+        _params.FaceTiltAdjustEnabled = FaceTiltToggle.IsOn;
+        SavePreferences();
+        AppendLog(_params.FaceTiltAdjustEnabled
+            ? "已开启人脸位置微调(最多 ±15%, 需连续同方向才生效)."
+            : "已关闭人脸位置微调.");
     }
 
     private async void OnResetSettingsClick(object sender, RoutedEventArgs e)

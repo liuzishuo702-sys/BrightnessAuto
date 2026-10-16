@@ -541,6 +541,23 @@
                                                       Toggled="OnIdleLockToggled" />
                                     </Grid>
                                     <Border Height="1" Background="{ThemeResource AppStrokeBrush}" />
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="34" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Glyph="&#xE8FE;" FontSize="16" Foreground="{ThemeResource AppTextDimBrush}" />
+                                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                            <TextBlock Text="人脸位置微调" Style="{StaticResource SettingTitleStyle}" />
+                                            <TextBlock Text="抬头略调亮、低头略调暗。默认关闭：它与环境光映射共用同一个输出，容易互相干扰" Style="{StaticResource SettingDescriptionStyle}" />
+                                        </StackPanel>
+                                        <ToggleSwitch x:Name="FaceTiltToggle" Grid.Column="2"
+                                                      OffContent="" OnContent=""
+                                                      VerticalAlignment="Center"
+                                                      Toggled="OnFaceTiltToggled" />
+                                    </Grid>
+                                    <Border Height="1" Background="{ThemeResource AppStrokeBrush}" />
                                     <TextBlock Text="场景预设" Style="{StaticResource SettingTitleStyle}" Margin="0,16,0,8" />
                                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,4">
                                         <Button x:Name="PresetOfficeBtn" Click="OnPresetOfficeClick">办公模式</Button>
