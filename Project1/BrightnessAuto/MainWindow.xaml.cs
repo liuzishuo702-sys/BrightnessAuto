@@ -251,11 +251,14 @@ public sealed partial class MainWindow : Window
                 if (_trayIcon?.Show() == true)
                 {
                     _windowHiddenInTray = true;
+                    // 窗口藏起来后预览没人看得到, 停掉定时器免得每 300ms 白抓一帧.
+                    StopCameraPreview();
                     AppWindow.Hide();
                 }
                 else if (AppWindow.Presenter is OverlappedPresenter presenter)
                 {
                     presenter.Minimize();
+                    StopCameraPreview();
                 }
             }
             else if (result == ContentDialogResult.Secondary)
@@ -283,6 +286,8 @@ public sealed partial class MainWindow : Window
         AppWindow.Show();
         if (AppWindow.Presenter is OverlappedPresenter presenter)
             presenter.Restore();
+        // 若恢复时正停在摄像头页, 重新开预览; 其它页面不启动.
+        if (_currentViewTag == "camera") StartCameraPreview();
         Activate();
     }
 
@@ -721,6 +726,8 @@ public sealed partial class MainWindow : Window
         UpdateBatteryStatus();
     }
 
+    private string _lastBatteryText = "";
+
     private void UpdateBatteryStatus()
     {
         try
@@ -732,11 +739,17 @@ public sealed partial class MainWindow : Window
                 BatteryBar.Visibility = Visibility.Collapsed;
                 BatteryPercent.Text = "—";
                 BatteryStatus.Text = "已接通电源";
+                BatteryLowHint.Visibility = Visibility.Collapsed;
                 return;
             }
 
-            BatteryBar.Visibility = Visibility.Visible;
             int percent = Math.Clamp((int)Math.Round((double)PowerManager.RemainingChargePercent), 0, 100);
+            bool charging = report == Windows.System.Power.BatteryStatus.Charging;
+            string text = percent + "|" + (int)report;
+            if (text == _lastBatteryText) return;   // 值没变就不重复改 UI(每秒调用一次)
+            _lastBatteryText = text;
+
+            BatteryBar.Visibility = Visibility.Visible;
             BatteryBar.Value = percent;
             BatteryPercent.Text = $"{percent}%";
             BatteryStatus.Text = report switch
@@ -746,12 +759,20 @@ public sealed partial class MainWindow : Window
                 Windows.System.Power.BatteryStatus.Idle => "已接通电源",
                 _ => "电池状态未知"
             };
+
+            // 低电量强调: 只在"没在充电且 ≤20%"时标红提示, 充电中不吓人.
+            bool low = percent <= 20 && !charging;
+            BatteryLowHint.Visibility = low ? Visibility.Visible : Visibility.Collapsed;
+            BatteryPercent.Foreground = low
+                ? new SolidColorBrush(Color.FromArgb(255, 255, 106, 106))
+                : (Brush)Application.Current.Resources["AppTextBrush"];
         }
         catch
         {
             BatteryBar.Visibility = Visibility.Collapsed;
             BatteryPercent.Text = "—";
             BatteryStatus.Text = "电源状态不可用";
+            BatteryLowHint.Visibility = Visibility.Collapsed;
         }
     }
 
@@ -770,6 +791,7 @@ public sealed partial class MainWindow : Window
     {
         if (args.SelectedItem is not NavigationViewItem item) return;
         string tag = item.Tag as string ?? "home";
+        _currentViewTag = tag;
         HomeView.Visibility     = tag == "home"     ? Visibility.Visible : Visibility.Collapsed;
         SettingsView.Visibility = tag == "settings" ? Visibility.Visible : Visibility.Collapsed;
         CameraView.Visibility   = tag == "camera"   ? Visibility.Visible : Visibility.Collapsed;
@@ -1811,6 +1833,11 @@ public sealed partial class MainWindow : Window
             ? Color.FromArgb(255, 16, 124, 16)
             : Color.FromArgb(255, 158, 158, 158));
         StatusLabel.Text = running ? "运行中" : "已停止";
+        // 一句话说明当前状态与下一步该做什么 —— 首页此前只有按钮、没有提示,
+        // 用户不知道点下去会发生什么.
+        RunHintText.Text = running
+            ? "正在按环境光自动调节亮度，点右侧「停止」可交还手动控制"
+            : "点右侧「开始」后，程序会用摄像头测环境光并自动调亮度";
         // 停止时显示手动亮度滑块，运行时隐藏
         ManualBrightnessPanel.Visibility = running ? Visibility.Collapsed : Visibility.Visible;
         if (!running) SyncManualBrightnessSliderOnce();
@@ -2031,9 +2058,18 @@ public sealed partial class MainWindow : Window
     });
 
     private bool _startVisualSet;
+    private string _currentViewTag = "home";
 
     private void OnClearLogClick(object sender, RoutedEventArgs e)
-        => _logs.Clear();
+    {
+        _logs.Clear();
+        // 清空后若仍停在旧的滚动位置, 新日志会出现在可视区之外.
+        // 同时让"已滚到底部"的判定重新成立, 否则自动跟随会失效.
+        _dispatcher.TryEnqueue(() =>
+        {
+            LogScroll.ChangeView(null, 0, null, true);
+        });
+    }
 
     private void AppendLog(string line)
     {

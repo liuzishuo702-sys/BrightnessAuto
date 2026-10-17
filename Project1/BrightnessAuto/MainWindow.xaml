@@ -141,6 +141,11 @@
                                         <TextBlock x:Name="BatteryStatus" Text="电源状态读取中"
                                                    FontSize="11" HorizontalAlignment="Right"
                                                    Foreground="{ThemeResource AppTextDimBrush}" />
+                                        <!-- 低电量提示: 平时折叠, ≤20% 且未充电时显示 -->
+                                        <TextBlock x:Name="BatteryLowHint" Text="⚠ 电量偏低"
+                                                   FontSize="11" HorizontalAlignment="Right"
+                                                   Visibility="Collapsed"
+                                                   Foreground="#FF6A6A" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="6" Margin="0,0,0,0">
                                         <TextBlock Text="当前时间" FontSize="13" HorizontalAlignment="Center"
@@ -171,19 +176,25 @@
                                 </Grid>
                             </Border>
 
-                            <!-- 区块标题: 实时监控 -->
-                            <TextBlock Text="实时监控" Style="{StaticResource SectionHeaderStyle}"
+                            <!-- 区块标题: 自动调节状态 -->
+                            <TextBlock Text="自动调节" Style="{StaticResource SectionHeaderStyle}"
                                        Margin="2,6,0,-4" />
 
                             <!-- 仪表盘卡片: 顶部状态行 + 分隔线 + 双环 -->
                             <Border x:Name="MonitorCard" Style="{StaticResource AppCardStyle}">
                                 <StackPanel Spacing="16">
-                                    <!-- 状态行: 圆点 + 文字 + 启停按钮 -->
+                                    <!-- 状态行: 只放状态 + 主操作按钮 + 一句话说明 -->
                                     <Grid>
-                                        <Border Background="{ThemeResource AppSubtleSurfaceBrush}"
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0"
+                                                Background="{ThemeResource AppSubtleSurfaceBrush}"
                                                 BorderBrush="{ThemeResource AppStrokeBrush}"
                                                 BorderThickness="1" CornerRadius="4" Padding="10,6"
-                                                HorizontalAlignment="Left">
+                                                VerticalAlignment="Center">
                                             <StackPanel Orientation="Horizontal" Spacing="8">
                                                 <Ellipse x:Name="StatusDot" Width="8" Height="8"
                                                          Fill="{ThemeResource AppTextDimBrush}" />
@@ -192,24 +203,29 @@
                                                            VerticalAlignment="Center" />
                                             </StackPanel>
                                         </Border>
-                                        <Button x:Name="StartStopButton" Content="开始"
+                                        <TextBlock x:Name="RunHintText" Grid.Column="1"
+                                                   Text="点右侧「开始」后，程序会用摄像头测环境光并自动调亮度"
+                                                   FontSize="12" TextWrapping="Wrap"
+                                                   Margin="12,0" VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource AppTextDimBrush}" />
+                                        <Button x:Name="StartStopButton" Grid.Column="2" Content="开始"
                                                 Style="{StaticResource AppPrimaryButtonStyle}"
-                                                HorizontalAlignment="Right"
-                                                 Background="{ThemeResource AppAccentBrush}"
-                                                ToolTipService.ToolTip="开始/停止 (空格)"
+                                                VerticalAlignment="Center" MinWidth="96"
+                                                Background="{ThemeResource AppAccentBrush}"
+                                                ToolTipService.ToolTip="开始/停止自动调节（快捷键：空格）"
                                                 Click="OnStartStopClick" />
                                     </Grid>
                                     <!-- 细分隔线: Win10 卡内分区惯用 1px 线, 而非留白 -->
                                     <Border Height="1" Background="{ThemeResource AppStrokeBrush}" Margin="-20,0" />
-                                    <TextBlock Text="场景预设" Style="{StaticResource SettingTitleStyle}" Margin="0,16,0,8" />
-                                    <!-- 双环 -->
+
+                                    <!-- 双环: 只读显示当前值 -->
                                     <Grid Height="176">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <controls:ArcGauge x:Name="LumaGauge" Grid.Column="0"
-                                                           Label="环境光 (0-255)" BigText="0"
+                                                           Label="环境光 (0-255)" BigText="—"
                                                            Maximum="255" Value="0"
                                                            TrackBrush="{ThemeResource AppGaugeTrackBrush}">
                                             <controls:ArcGauge.ArcBrush>
@@ -217,18 +233,19 @@
                                             </controls:ArcGauge.ArcBrush>
                                         </controls:ArcGauge>
                                         <controls:ArcGauge x:Name="BriGauge" Grid.Column="1"
-                                                           Label="屏幕亮度" BigText="0%"
+                                                           Label="屏幕亮度" BigText="—"
                                                            Maximum="100" Value="0"
                                                            TrackBrush="{ThemeResource AppGaugeTrackBrush}"
                                                            ArcBrush="{ThemeResource AppAccentBrush}" />
                                     </Grid>
-                                    <!-- 手动亮度滑块（自动停止时可用） -->
+
+                                    <!-- 手动亮度滑块（仅在自动调节停止时可用, 见 SetRunningVisual） -->
                                     <StackPanel x:Name="ManualBrightnessPanel" Spacing="6" Visibility="Collapsed">
                                         <Grid>
-                                            <TextBlock Text="手动亮度" FontSize="12"
+                                            <TextBlock Text="手动调亮度（未运行自动调节时可用）" FontSize="12"
                                                        Foreground="{ThemeResource AppTextDimBrush}"
                                                        VerticalAlignment="Center" />
-                                            <TextBlock x:Name="ManualBrightnessValue" Text="50%" FontSize="12"
+                                            <TextBlock x:Name="ManualBrightnessValue" Text="—" FontSize="12"
                                                        Foreground="{ThemeResource AppTextDimBrush}"
                                                        HorizontalAlignment="Right"
                                                        VerticalAlignment="Center" />
