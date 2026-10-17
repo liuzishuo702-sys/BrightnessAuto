@@ -22,11 +22,13 @@
                             <SolidColorBrush x:Key="AppTopHighlightBrush" Color="#FFFFFF" Opacity="0.10" />
                             <SolidColorBrush x:Key="AppScrimBrush" Color="#101010" Opacity="0.06" />
                             <SolidColorBrush x:Key="AppTitleBarBrush" Color="#181818" Opacity="0.40" />
-                            <SolidColorBrush x:Key="AppPaneBrush" Color="#000000" Opacity="0.55" />
+                            <SolidColorBrush x:Key="AppPaneBrush" Color="#000000" Opacity="0.88" />
                             <SolidColorBrush x:Key="AppContentBrush" Color="#000000" Opacity="0.15" />
-                            <!-- 收起与展开共用同一颜色，避免 NavigationView 默认刷子切换时跳色。 -->
-                            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="#181818" Opacity="0.48" />
-                            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="#181818" Opacity="0.48" />
+                            <!-- 收起与展开共用同一颜色，避免 NavigationView 默认刷子切换时跳色。
+                                 透明度从 0.48 提到 0.92: 0.48 时侧栏会透出底下的窗口内容,
+                                 中文小字与图标混在一起很难辨认. -->
+                            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="#141414" Opacity="0.92" />
+                            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="#141414" Opacity="0.92" />
                             <SolidColorBrush x:Key="AppTextBrush" Color="#F5F5F5" />
                             <SolidColorBrush x:Key="AppTextDimBrush" Color="#B5B5B5" />
                             <SolidColorBrush x:Key="AppGaugeTrackBrush" Color="#FFFFFF" Opacity="0.14" />
@@ -46,10 +48,10 @@
                             <SolidColorBrush x:Key="AppTopHighlightBrush" Color="#FFFFFF" Opacity="0.82" />
                             <SolidColorBrush x:Key="AppScrimBrush" Color="#FFFFFF" Opacity="0.04" />
                             <SolidColorBrush x:Key="AppTitleBarBrush" Color="#FFFFFF" Opacity="0.38" />
-                            <SolidColorBrush x:Key="AppPaneBrush" Color="#FFFFFF" Opacity="0.46" />
+                            <SolidColorBrush x:Key="AppPaneBrush" Color="#FFFFFF" Opacity="0.88" />
                             <SolidColorBrush x:Key="AppContentBrush" Color="#FFFFFF" Opacity="0.08" />
-                            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="#FFFFFF" Opacity="0.46" />
-                            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="#FFFFFF" Opacity="0.46" />
+                            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="#F7F7F7" Opacity="0.94" />
+                            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="#F7F7F7" Opacity="0.94" />
                             <SolidColorBrush x:Key="AppTextBrush" Color="#111111" />
                             <SolidColorBrush x:Key="AppTextDimBrush" Color="#575757" />
                             <SolidColorBrush x:Key="AppGaugeTrackBrush" Color="#D6D6D6" />
