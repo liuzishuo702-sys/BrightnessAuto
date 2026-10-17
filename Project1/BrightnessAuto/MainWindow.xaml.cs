@@ -214,6 +214,10 @@ public sealed partial class MainWindow : Window
         try { AppWindow?.Resize(new Windows.Graphics.SizeInt32(980, 720)); } catch { }
 
         _uiReady = true;
+        // 同步一次"已停止"的界面状态: 手动亮度面板默认是 Collapsed,
+        // 只有 SetRunningVisual 跑过才会显示; 全新启动时没人调它,
+        // 结果"自动调节已停止"却看不到手动调亮度滑块.
+        SetRunningVisual(false);
         AppendLog("就绪. 点击\"开始\"或按空格启动自动调节.");
     }
 
