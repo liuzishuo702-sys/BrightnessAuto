@@ -30,20 +30,21 @@ public sealed class AutoBrightnessEngine
     [DllImport("user32.dll")]
     private static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
 
-    /// <summary>系统启动至今的"无偏"中断时间(毫秒), 不受休眠/待机影响, 64 位不会回绕.</summary>
+    /// <summary>系统启动至今的毫秒数(含睡眠时间, 与 <c>LASTINPUTINFO.dwTime</c> 同一时间基准).</summary>
     [DllImport("kernel32.dll")]
-    private static extern ulong QueryUnbiasedInterruptTime(out ulong unbiasedTime);
+    private static extern ulong GetTickCount64();
 
     /// <summary>
     /// 获取距离最后一次鼠标/键盘输入的秒数.
     ///
-    /// 两者都取"自系统启动以来的毫秒数"同一时间基准:
-    /// - <c>LASTINPUTINFO.dwTime</c> 的低 32 位来自 <c>GetTickCount</c>
-    /// - <c>QueryUnbiasedInterruptTime</c> 给出 64 位无偏时间
+    /// <c>LASTINPUTINFO.dwTime</c> 来自 <c>GetTickCount</c>(系统启动至今的毫秒数, 32 位),
+    /// 因此必须用<b>同一基准</b>的时钟去减: 这里用 <c>GetTickCount64</c>,
+    /// 只取低 32 位做无符号减法即可天然处理 49.7 天回绕。
     ///
-    /// 直接相减即可: 无偏时间会剔除系统睡眠, 且不会像 <c>Environment.TickCount</c>
-    /// 那样在 24.9 天后回绕 —— 旧实现正是因此在长时间运行后算出天文数字,
-    /// 把"有人"误判成"无人"从而误锁屏。
+    /// 踩过的坑(务必别再犯): 曾改用 <c>QueryUnbiasedInterruptTime</c> 想剔除睡眠时间,
+    /// 但它返回的是 <b>100 纳秒</b>单位, 与毫秒的 dwTime 直接相减会得到荒谬结果
+    /// (实测算出 "4172787 秒无输入" ≈ 48 天), 导致人明明在操作也被判定成无人,
+    /// 反复降亮度甚至自动锁屏。
     /// </summary>
     private static uint GetIdleSeconds()
     {
@@ -51,9 +52,8 @@ public sealed class AutoBrightnessEngine
         if (!GetLastInputInfo(ref lii))
             return 0;
 
-        QueryUnbiasedInterruptTime(out ulong now);
-        uint nowLow = (uint)now;                  // 与 dwTime 同为"启动后毫秒"的低 32 位
-        uint elapsedMs = unchecked(nowLow - lii.dwTime);   // 无符号减法天然处理低 32 位回绕
+        uint nowLow = (uint)GetTickCount64();          // 毫秒, 低 32 位
+        uint elapsedMs = unchecked(nowLow - lii.dwTime); // 无符号减法处理低 32 位回绕
         return elapsedMs / 1000;
     }
 
@@ -107,9 +107,17 @@ public sealed class AutoBrightnessEngine
     public bool IsRunning => _loop is { IsCompleted: false }
         && _cts?.IsCancellationRequested != true;
 
-    /// <summary>获取摄像头最新预览帧(Bgra8). 引擎未运行或无帧时返回 null.</summary>
-    public Windows.Graphics.Imaging.SoftwareBitmap? GetPreviewFrame()
-        => _camera?.GetLatestPreviewFrame();
+    /// <summary>
+    /// 预览帧就绪(引擎线程触发, 参数为紧密排列的 BGRA8 字节 + 宽高).
+    /// 帧的抓取必须在引擎线程完成(MediaFrameReader 是单元线程对象),
+    /// 界面只接收纯字节, 不再跨线程碰 WinRT 对象。
+    /// </summary>
+    public event Action<byte[], int, int>? PreviewFrameReady;
+
+    private volatile bool _previewEnabled;
+
+    /// <summary>开启/关闭预览帧推送(界面进入/离开摄像头页时切换).</summary>
+    public void SetPreviewEnabled(bool enabled) => _previewEnabled = enabled;
 
     public AutoBrightnessEngine(EngineParams p)
     {
@@ -250,6 +258,10 @@ public sealed class AutoBrightnessEngine
             DateTime? sedentarySince = null;   // 久坐计时起点(按真实时间计, 不按循环次数)
             bool noFaceConfirmed = false;
             bool lockWarningSent = false;
+            // 本会话是否真正检测到过人脸 / 是否已经警告过"始终没人脸".
+            // 用于防止摄像头没对准时把"检测不到脸"误当成"人走了".
+            bool faceSeenThisSession = false;
+            bool warnedNoFaceEver = false;
             BrightnessProfile? loggedProfile = null;
 
             while (!token.IsCancellationRequested)
@@ -351,6 +363,7 @@ public sealed class AutoBrightnessEngine
                     uint inputIdle = GetIdleSeconds();
                     if (hasFace || inputIdle < 10)
                     {
+                        if (hasFace) faceSeenThisSession = true;   // 人脸检测确实有效过才允许后续"无人"判定
                         noFaceConfirmed = false;
                         lockWarningSent = false;
                         lastSeenFace = DateTime.Now;
@@ -420,21 +433,37 @@ public sealed class AutoBrightnessEngine
                     }
                     else if (faceResult != null && !hasFace)
                     {
-                        noFaceConfirmed = true;
-                        // 人不在, 久坐计时清零(回来重新开始计).
-                        sedentarySince = null;
-                        faceOffset = 0;
-                        faceOffsetDir = 0;
-                        faceOffsetSamples = 0;
-                        int faceIdleSec = (int)(DateTime.Now - lastSeenFace).TotalSeconds;
-                        // 10秒无人脸+无输入 → 开始降亮度
-                        if (faceIdleSec >= 10 && applied > 10)
+                        // 安全闸: 本会话从未检测到过人脸时, "检测不到脸"大概率是摄像头没对准
+                        // (外接 USB 摄像头朝墙、被挡住、画面过暗), 而不是人真的走了。
+                        // 这种情况下绝不能据此降亮度/锁屏 —— 否则人坐在电脑前也会被反复降亮、锁屏。
+                        if (!faceSeenThisSession)
                         {
-                            isDimming = true;
-                            int dimmed = Math.Max(10, applied - 20);
-                            brightness.SetBrightness(dimmed);
-                            applied = dimmed;
-                            Log?.Invoke($"无人 {faceIdleSec}秒, 亮度降至 {dimmed}%");
+                            noFaceConfirmed = false;
+                            if (!warnedNoFaceEver)
+                            {
+                                warnedNoFaceEver = true;
+                                Log?.Invoke("[警告] 摄像头始终没有检测到人脸, 已暂停\"无人降亮/自动锁屏\"。"
+                                          + "请检查摄像头是否对准你, 或在「摄像头」页换一个测光摄像头。");
+                            }
+                        }
+                        else
+                        {
+                            noFaceConfirmed = true;
+                            // 人不在, 久坐计时清零(回来重新开始计).
+                            sedentarySince = null;
+                            faceOffset = 0;
+                            faceOffsetDir = 0;
+                            faceOffsetSamples = 0;
+                            int faceIdleSec = (int)(DateTime.Now - lastSeenFace).TotalSeconds;
+                            // 10秒无人脸+无输入 → 开始降亮度
+                            if (faceIdleSec >= 10 && applied > 10)
+                            {
+                                isDimming = true;
+                                int dimmed = Math.Max(10, applied - 20);
+                                brightness.SetBrightness(dimmed);
+                                applied = dimmed;
+                                Log?.Invoke($"无人 {faceIdleSec}秒, 亮度降至 {dimmed}%");
+                            }
                         }
                     }
                     else
@@ -507,8 +536,29 @@ public sealed class AutoBrightnessEngine
                     if (secondsUntilWarning > 0)
                         intervalSec = Math.Min(intervalSec, Math.Max(1, secondsUntilWarning));
                 }
-                for (int t = 0; t < intervalSec * 10; ++t)
+                // 分片等待(每片 100ms), 便于及时响应取消; 顺带在等待期间推送预览帧.
+                int waitTicks = intervalSec * 10;
+                for (int t = 0; t < waitTicks; ++t)
+                {
                     await Task.Delay(100, token);
+
+                    // 每 300ms 推一帧预览. 关键: 抓帧必须在这个线程(引擎线程)上做,
+                    // MediaFrameReader 是单元线程对象, 交给 UI 线程调用会 RPC_E_WRONG_THREAD 崩溃.
+                    // 只把紧密排列的 BGRA 字节丢给界面, 两边不共享 WinRT 对象.
+                    if (_previewEnabled && t % 3 == 2)
+                    {
+                        try
+                        {
+                            if (_camera != null
+                                && _camera.TryReadPreviewBgra(out var px, out var pw, out var ph))
+                            {
+                                PreviewFrameReady?.Invoke(px, pw, ph);
+                            }
+                        }
+                        catch (OperationCanceledException) { throw; }
+                        catch { /* 预览失败不影响自动调节主流程 */ }
+                    }
+                }
             }
         }
         catch (OperationCanceledException) { }

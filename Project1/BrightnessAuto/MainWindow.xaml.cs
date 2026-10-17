@@ -118,6 +118,7 @@ public sealed partial class MainWindow : Window
         _engine.SedentaryReminder += OnSedentaryReminder;
         _engine.Stopped += OnEngineStopped;
         _engine.StartFailed += OnEngineStartFailed;
+        _engine.PreviewFrameReady += OnPreviewFrameReady;
 
         // 使用系统亚克力材质，让桌面背景透过并产生柔和模糊；不支持时回退云母。
         try
@@ -1348,32 +1349,12 @@ public sealed partial class MainWindow : Window
         => UpdateHistoryChart();
 
     // ---- 摄像头预览 ----
-    private Microsoft.UI.Xaml.Media.Imaging.SoftwareBitmapSource? _cameraPreviewSource;
-    private DispatcherTimer? _cameraPreviewTimer;
-    private Windows.Graphics.Imaging.SoftwareBitmap? _cameraPreviewBitmap;
-
+    // 帧由引擎线程抓取并通过 PreviewFrameReady 推送(纯字节), 界面只负责画图。
+    // 绝不能在 UI 线程直接调用 MediaFrameReader —— 那是单元线程对象, 跨线程访问会
+    // RPC_E_WRONG_THREAD 崩溃(表现为"开始后进摄像头页就闪退")。
     private void StartCameraPreview()
     {
-        if (_cameraPreviewTimer != null) return;
-        _cameraPreviewSource ??= new Microsoft.UI.Xaml.Media.Imaging.SoftwareBitmapSource();
-        CameraPreviewImage.Source = _cameraPreviewSource;
-        _cameraPreviewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
-        _cameraPreviewTimer.Tick += async (_, _) => await RefreshCameraPreviewAsync();
-        _cameraPreviewTimer.Start();
-    }
-
-    private void StopCameraPreview()
-    {
-        _cameraPreviewTimer?.Stop();
-        _cameraPreviewTimer = null;
-        // 清掉源位图: SoftwareBitmapSource 不再持有旧帧, 也避免它跟引擎抢句柄.
         CameraPreviewImage.Source = null;
-        _cameraPreviewBitmap?.Dispose();
-        _cameraPreviewBitmap = null;
-    }
-
-    private async Task RefreshCameraPreviewAsync()
-    {
         if (!_engine.IsRunning)
         {
             CameraPreviewPlaceholder.Visibility = Visibility.Visible;
@@ -1381,29 +1362,67 @@ public sealed partial class MainWindow : Window
             CameraLumaValue.Text = "—";
             return;
         }
-        CameraPreviewPlaceholder.Visibility = Visibility.Collapsed;
-        CameraLumaValue.Text = LumaGauge.Value > 0 ? $"{LumaGauge.Value} / 255" : "采样中…";
+        CameraPreviewPlaceholder.Visibility = Visibility.Visible;
+        CameraPreviewHint.Text = "正在获取画面…";
+        _engine.SetPreviewEnabled(true);
+    }
 
-        var frame = _engine.GetPreviewFrame();
-        if (frame == null || _cameraPreviewSource == null)
-        {
-            frame?.Dispose();
-            return;
-        }
+    private void StopCameraPreview()
+    {
+        _engine.SetPreviewEnabled(false);
+        CameraPreviewImage.Source = null;
+    }
+
+    /// <summary>引擎线程推送来的帧(已 marshal 到 UI 线程执行).</summary>
+    private void OnPreviewFrameReady(byte[] bgra, int width, int height)
+    {
+        _dispatcher.TryEnqueue(() => RenderPreview(bgra, width, height));
+    }
+
+    private async void RenderPreview(byte[] bgra, int width, int height)
+    {
         try
         {
-            await _cameraPreviewSource.SetBitmapAsync(frame);
+            // WinUI 3 没有 IBuffer→Stream 的便捷扩展, 这里把 BGRA 打包成内存 BMP
+            // (32bpp 自底向上, 手工头 54 字节), 再交给 BitmapImage 解码。
+            // 帧已在引擎侧降采样到 ≤640 宽, 开销可控。
+            int rowSize = width * 4;
+            int pixelSize = rowSize * height;
+            int fileSize = 54 + pixelSize;
+            var bmp = new byte[fileSize];
+            bmp[0] = (byte)'B'; bmp[1] = (byte)'M';
+            BitConverter.GetBytes(fileSize).CopyTo(bmp, 2);
+            BitConverter.GetBytes(54).CopyTo(bmp, 10);
+            BitConverter.GetBytes(40).CopyTo(bmp, 14);
+            BitConverter.GetBytes(width).CopyTo(bmp, 18);
+            BitConverter.GetBytes(height).CopyTo(bmp, 22);
+            BitConverter.GetBytes((short)1).CopyTo(bmp, 26);
+            BitConverter.GetBytes((short)32).CopyTo(bmp, 28);
+            BitConverter.GetBytes(pixelSize).CopyTo(bmp, 34);
+            for (int y = 0; y < height; y++)
+                Buffer.BlockCopy(bgra, y * rowSize, bmp, 54 + (height - 1 - y) * rowSize, rowSize);
+
+            using var ras = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+            using (var writer = new Windows.Storage.Streams.DataWriter(ras))
+            {
+                writer.WriteBytes(bmp);
+                await writer.StoreAsync();
+                await writer.FlushAsync();
+                writer.DetachStream();
+            }
+            ras.Seek(0);
+
+            var image = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
+            await image.SetSourceAsync(ras);
+            CameraPreviewImage.Source = image;
+
+            CameraPreviewPlaceholder.Visibility = Visibility.Collapsed;
+            CameraLumaValue.Text = LumaGauge.Value > 0 ? $"{LumaGauge.Value} / 255" : "采样中…";
         }
         catch (Exception ex)
         {
-            // 帧格式不兼容时不静默: 至少留一次调试输出, 否则"预览不动"无从排查.
-            Debug.WriteLine($"[MainWindow] 摄像头预览失败: {ex.Message}");
-            frame.Dispose();
-            return;
+            Debug.WriteLine($"[MainWindow] 预览渲染失败: {ex.Message}");
         }
-        // 上一帧交给 XAML 之后就不再需要了, 在这里统一回收.
-        _cameraPreviewBitmap?.Dispose();
-        _cameraPreviewBitmap = frame;
     }
 
     private void UpdateHistoryChart()

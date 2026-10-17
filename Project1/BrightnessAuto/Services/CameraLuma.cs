@@ -209,11 +209,19 @@ public sealed class CameraLuma : IAsyncDisposable
         || string.Equals(candidate.Group.DisplayName, preferred, StringComparison.OrdinalIgnoreCase)
         || string.Equals(candidate.Info.DeviceInformation?.Name, preferred, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>摄像头是否内置(笔记本自带). 枚举不到位置信息时保守视为内部.</summary>
+    /// <summary>
+    /// 摄像头是否内置. 枚举不到位置信息时:
+    /// 名字里带"虚拟/virtual"的明确判为非内置(手机投屏等), 其余保守视为内置。
+    /// 之前把面板未知一律当内置, 导致日志里手机虚拟摄像头也显示"内置=True", 很容易误判。
+    /// </summary>
     private static bool IsBuiltIn(MediaFrameSourceInfo info)
     {
         var panel = info.DeviceInformation?.EnclosureLocation?.Panel;
-        return panel is null or Panel.Unknown or Panel.Front or Panel.Back;
+        if (panel == Panel.Front || panel == Panel.Back) return true;
+        string name = info.DeviceInformation?.Name ?? string.Empty;
+        bool looksVirtual = name.Contains("虚拟", StringComparison.OrdinalIgnoreCase)
+                            || name.Contains("virtual", StringComparison.OrdinalIgnoreCase);
+        return !looksVirtual;
     }
 
     /// <summary>
@@ -456,15 +464,92 @@ public sealed class CameraLuma : IAsyncDisposable
         catch { /* 忽略 */ }
     }
 
-    /// <summary>获取最新一帧的 Bgra8 副本(用于 UI 预览). 无帧时返回 null.</summary>
-    public SoftwareBitmap? GetLatestPreviewFrame()
+    /// <summary>
+    /// 抓一帧并导出为"紧密排列"的 BGRA8 字节(每行 width*4 字节), 供 UI 线程构造位图。
+    ///
+    /// ⚠️ 只能在<b>创建 MediaFrameReader 的那个线程</b>上调用。
+    /// <c>MediaFrameReader</c> 与 <c>SoftwareBitmap</c> 都是单元线程(apartment)对象,
+    /// 从 UI 线程直接调用会得到 RPC_E_WRONG_THREAD(0x8001010E),
+    /// 最终以 stowed exception(0xC000027B) 形式让整个进程崩溃 ——
+    /// 这正是"开始后进入摄像头预览就崩"的原因。
+    ///
+    /// 因此引擎线程负责取帧+导出字节, UI 线程只负责用字节画图, 两边不共享 WinRT 对象。
+    /// </summary>
+    public bool TryReadPreviewBgra(out byte[] pixels, out int width, out int height)
     {
-        if (_reader == null) return null;
+        pixels = Array.Empty<byte>();
+        width = 0; height = 0;
+        if (_reader == null) return false;
+
         using var frameRef = _reader.TryAcquireLatestFrame();
         var bitmap = frameRef?.VideoMediaFrame?.SoftwareBitmap;
-        if (bitmap == null) return null;
-        // 转 Bgra8 Premultiplied 供 SoftwareBitmapSource 显示, 复制一份避免 frameRef 释放后失效.
-        return SoftwareBitmap.Convert(bitmap, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
+        if (bitmap == null) return false;
+
+        SoftwareBitmap bgra = bitmap.BitmapPixelFormat == BitmapPixelFormat.Bgra8
+            ? bitmap
+            : SoftwareBitmap.Convert(bitmap, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Ignore);
+        try
+        {
+            int w = bgra.PixelWidth, h = bgra.PixelHeight;
+            if (w <= 0 || h <= 0) return false;
+
+            int stride, startIndex;
+            using (var buffer = bgra.LockBuffer(BitmapBufferAccessMode.Read))
+            {
+                var plane = buffer.GetPlaneDescription(0);
+                stride = plane.Stride;
+                startIndex = plane.StartIndex;
+            }
+
+            int rawLen = startIndex + stride * h;
+            byte[] raw = ArrayPool<byte>.Shared.Rent(rawLen);
+            try
+            {
+                bgra.CopyToBuffer(raw.AsBuffer(0, rawLen));
+
+                // 预览不需要原分辨率: 宽度超过 640 时按 2 的幂降采样,
+                // 大幅降低跨线程传输量与 UI 侧解码/GC 压力。
+                int ds = 1;
+                while (w / ds > 640) ds *= 2;
+                int ow = w / ds, oh = h / ds;
+
+                int tight = ow * 4 * oh;
+                var dst = new byte[tight];
+                for (int y = 0; y < oh; y++)
+                {
+                    int srcRow = startIndex + (y * ds) * stride;
+                    int dstRow = y * ow * 4;
+                    if (ds == 1)
+                    {
+                        Buffer.BlockCopy(raw, srcRow, dst, dstRow, ow * 4);
+                    }
+                    else
+                    {
+                        for (int x = 0; x < ow; x++)
+                        {
+                            int s = srcRow + x * ds * 4;
+                            int d = dstRow + x * 4;
+                            dst[d] = raw[s]; dst[d + 1] = raw[s + 1];
+                            dst[d + 2] = raw[s + 2]; dst[d + 3] = 255;
+                        }
+                    }
+                }
+
+                pixels = dst;
+                width = ow;
+                height = oh;
+                return true;
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(raw);
+            }
+        }
+        finally
+        {
+            if (!ReferenceEquals(bgra, bitmap)) bgra.Dispose();
+            bitmap.Dispose();
+        }
     }
 
     /// <summary>读取一次平均亮度(0-255). 失败返回 -1.</summary>
