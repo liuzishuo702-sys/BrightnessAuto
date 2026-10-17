@@ -31,7 +31,7 @@
                                   Foreground="{ThemeResource AppAccentBrush}" />
                         <TextBlock Text="环境光自动亮度" FontSize="12" Margin="10,0,0,0"
                                    Foreground="{ThemeResource AppTextBrush}" VerticalAlignment="Center" />
-                        <TextBlock Text="v3.1.9 Dev" FontSize="12" Margin="10,0,0,0"
+                        <TextBlock x:Name="TitleVersionText" Text="v—" FontSize="12" Margin="10,0,0,0"
                                    Foreground="{ThemeResource AppTextDimBrush}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Grid>
@@ -686,7 +686,7 @@
                                         <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,1">
                                             <FontIcon Glyph="&#xE787;" Style="{StaticResource InfoIconStyle}" />
                                             <TextBlock Text="版本:" Style="{StaticResource InfoKeyStyle}" />
-                                            <TextBlock Text="v3.1.9 Dev" Style="{StaticResource InfoValueStyle}" />
+                                            <TextBlock x:Name="AboutVersionText" Text="v—" Style="{StaticResource InfoValueStyle}" />
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,1">
                                             <FontIcon Glyph="&#xE823;" Style="{StaticResource InfoIconStyle}" />

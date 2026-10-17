@@ -214,6 +214,8 @@ public sealed partial class MainWindow : Window
         try { AppWindow?.Resize(new Windows.Graphics.SizeInt32(980, 720)); } catch { }
 
         _uiReady = true;
+        // 版本号从包清单动态读取, 避免像以前那样写死 "v3.1.9 Dev" 长期不更新.
+        ApplyVersionText();
         // 同步一次"已停止"的界面状态: 手动亮度面板默认是 Collapsed,
         // 只有 SetRunningVisual 跑过才会显示; 全新启动时没人调它,
         // 结果"自动调节已停止"却看不到手动调亮度滑块.
@@ -2037,6 +2039,29 @@ public sealed partial class MainWindow : Window
         UpdateHistoryChart();
         UpdateCurvePreview();
     });
+
+    /// <summary>
+    /// 把标题栏与"关于"页的版本号设为当前包版本.
+    /// 优先读 MSIX 清单(Package.Current), 未打包运行时回退到程序集版本,
+    /// 这样以后只改 Package.appxmanifest 的 Version, 界面自动跟随.
+    /// </summary>
+    private void ApplyVersionText()
+    {
+        string text;
+        try
+        {
+            var v = Windows.ApplicationModel.Package.Current.Id.Version;
+            text = $"v{v.Major}.{v.Minor}.{v.Build}.{v.Revision}";
+        }
+        catch
+        {
+            // 未打包 / 无包身份时读程序集版本
+            var asm = typeof(MainWindow).Assembly.GetName().Version;
+            text = asm is null ? "v—" : $"v{asm.Major}.{asm.Minor}.{asm.Build}.{asm.Revision}";
+        }
+        TitleVersionText.Text = text;
+        AboutVersionText.Text = text;
+    }
 
     private void OnEngineStopped() => _dispatcher.TryEnqueue(() =>
     {
