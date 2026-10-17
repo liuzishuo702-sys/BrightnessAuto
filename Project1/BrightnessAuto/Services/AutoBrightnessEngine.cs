@@ -258,6 +258,7 @@ public sealed class AutoBrightnessEngine
             DateTime? sedentarySince = null;   // 久坐计时起点(按真实时间计, 不按循环次数)
             bool noFaceConfirmed = false;
             bool lockWarningSent = false;
+            DateTime lastHoldLog = DateTime.MinValue;   // "维持"日志限流用
             // 本会话是否真正检测到过人脸 / 是否已经警告过"始终没人脸".
             // 用于防止摄像头没对准时把"检测不到脸"误当成"人走了".
             bool faceSeenThisSession = false;
@@ -348,7 +349,13 @@ public sealed class AutoBrightnessEngine
                         }
                         else if (!isDimming)
                         {
-                            Log?.Invoke($"环境光 {smoothLuma:F0}  →  维持 {applied}%");
+                            // "维持"是常态, 每轮都打会把真正的警告淹没.
+                            // 限流: 距上一条"维持"日志 30 秒以上才再打.
+                            if ((DateTime.Now - lastHoldLog).TotalSeconds >= 30)
+                            {
+                                lastHoldLog = DateTime.Now;
+                                Log?.Invoke($"环境光 {smoothLuma:F0}  →  维持 {applied}%");
+                            }
                         }
                         Status?.Invoke(new StatusUpdate((int)(smoothLuma + 0.5), applied));
                     }
@@ -491,8 +498,24 @@ public sealed class AutoBrightnessEngine
                         IdleLockWarning?.Invoke(remaining);
                         Log?.Invoke($"即将锁屏, 还剩 {remaining} 秒.");
 
-                        await Task.Delay(TimeSpan.FromSeconds(remaining), token);
-                        if (token.IsCancellationRequested) break;
+                        // 倒计时期间每秒复查输入状态: 用户中途动了鼠标/键盘就立刻作废,
+                        // 而不是干等 remaining 秒后才在最终复查里拦下 —— 那样
+                        // "提醒中动了鼠标还要白等 10 秒且界面看着像要锁" 的体验很糟.
+                        bool aborted = false;
+                        for (int s = 0; s < remaining; s++)
+                        {
+                            await Task.Delay(1000, token);
+                            if (token.IsCancellationRequested) break;
+                            if (GetIdleSeconds() < 10)
+                            {
+                                aborted = true;
+                                noFaceConfirmed = false;
+                                lockWarningSent = false;
+                                Log?.Invoke("检测到操作, 已取消自动锁屏.");
+                                break;
+                            }
+                        }
+                        if (aborted || token.IsCancellationRequested) continue;
 
                         var finalFaceResult = await _camera.DetectFaceAsync(token);
                         bool finalHasFace = finalFaceResult?.HasFace == true;
