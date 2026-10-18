@@ -81,10 +81,10 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<Border, CardHoverFx> _cardFx = new();
     // Reveal 按下: 绝不能从半径 0 起 — 径向渐变半径为 0 时中心色会瞬间铺满整卡.
     private const float PressRadiusStart = 18f;
-    private const float PressRadiusHoldMax = 140f; // 按住时缓慢扩到的最大半径(局部光, 非整卡淹没)
-    private const int PressExpandMs = 900;         // 按住扩散时长, 偏慢才像 Win10
-    private const int PressReleaseExpandMs = 420;
-    private const int PressReleaseFadeMs = 380;
+    private const float PressRadiusHoldMax = 200f; // 按住时缓慢扩到的最大半径(局部光, 非整卡淹没)
+    private const int PressExpandMs = 2600;        // 按住扩散时长: Win10 很慢, 按住时才慢慢铺开
+    private const int PressReleaseExpandMs = 620;
+    private const int PressReleaseFadeMs = 520;
 
     // 某些 WinUI/Windows 组合下, 卡片的 handledEventsToo 指针监听会让子按钮丢失 Click.
     // 记录一次完整按压期间是否已经收到 Click, 仅在 Click 丢失时走指针兜底.
