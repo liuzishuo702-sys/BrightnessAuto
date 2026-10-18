@@ -379,8 +379,8 @@ public sealed partial class MainWindow : Window
             clipGeo.Size = new Vector2(w, h);
             clipGeo.CornerRadius = new Vector2(cr, cr);
             root.Clip = comp.CreateGeometricClip(clipGeo);
-            // 悬停光斑半径随卡片短边缩放, 保持各卡视觉密度一致.
-            float r = Math.Max(120f, Math.Min(w, h) * 0.55f);
+            // 悬停光斑: Win10 Reveal 的那个圆很小(约百来像素), 不随卡片撑大.
+            float r = Math.Clamp(Math.Min(w, h) * 0.22f, 55f, 95f);
             brush.EllipseRadius = new Vector2(r, r);
         }
 
