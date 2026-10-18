@@ -90,6 +90,11 @@ public sealed class EngineParams
     /// <summary>启用无人自动锁屏.</summary>
     public bool IdleLockEnabled { get; set; } = true;
 
+    /// <summary>
+    /// 启用"无人时降低亮度"(省电/护眼). 与锁屏分开, 因为很多人只想降亮不想被锁.
+    /// </summary>
+    public bool DimWhenAwayEnabled { get; set; } = true;
+
     /// <summary>无人多久后自动锁屏(秒).</summary>
     public int IdleLockSeconds { get; set; } = 60;
 

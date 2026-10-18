@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -21,10 +22,25 @@ internal sealed class TrayIcon : IDisposable
     private const uint TpmReturnCmd = 0x0100;
     private const uint MfString = 0x0000;
     private const uint MfSeparator = 0x0800;
+    private const uint MfPopup = 0x0010;
+    private const uint MfChecked = 0x0008;
+    private const uint MfGrayed = 0x0001;
+    private const uint MfByCommand = 0x0000;
     private const uint IdShow = 1;
     private const uint IdToggle = 2;
     private const uint IdExit = 3;
     private const uint IdStatus = 4;   // 菜单里的状态行，点击无反应
+    private const uint IdDimWhenAway = 5;
+    private const uint IdLockWhenAway = 6;
+    private const uint IdSedentary = 7;
+
+    // Segoe MDL2 Assets 图标字符. 用单色位图挂到菜单项上,
+    // Windows 会把它当遮罩, 自动按菜单文字色绘制 —— 深浅主题都自适应.
+    private const string GlyphWindow = "\uE737";   // FullScreen / 窗口
+    private const string GlyphSun = "\uE706";      // Brightness 太阳
+    private const string GlyphPower = "\uE7E8";    // PowerButton
+    private const string GlyphBell = "\uEA8F";     // Ringer / 提醒
+    private const string GlyphEye = "\uE7B3";      // RedEye / 无人检测
 
     private readonly nint _hwnd;
     private readonly Action _showWindow;
@@ -32,6 +48,10 @@ internal sealed class TrayIcon : IDisposable
     private readonly Action _exitApplication;
     private readonly Func<bool> _isEngineRunning;
     private readonly Func<(int envLight, int brightness)>? _statusReader;
+    private readonly Func<(bool dim, bool lockScreen, bool sedentary)>? _togglesReader;
+    private readonly Action? _toggleDimWhenAway;
+    private readonly Action? _toggleLockWhenAway;
+    private readonly Action? _toggleSedentary;
     private readonly WindowProc _windowProc;
     private readonly uint _taskbarCreatedMessage;
     private nint _oldWindowProc;
@@ -39,10 +59,15 @@ internal sealed class TrayIcon : IDisposable
     private bool _ownsIcon;
     private bool _visible;
     private bool _disposed;
+    private TrayMenuWindow? _menuWindow;
 
     public TrayIcon(nint hwnd, Action showWindow, Action toggleEngine,
         Action exitApplication, Func<bool> isEngineRunning,
-        Func<(int envLight, int brightness)>? statusReader = null)
+        Func<(int envLight, int brightness)>? statusReader = null,
+        Func<(bool dim, bool lockScreen, bool sedentary)>? togglesReader = null,
+        Action? toggleDimWhenAway = null,
+        Action? toggleLockWhenAway = null,
+        Action? toggleSedentary = null)
     {
         _hwnd = hwnd;
         _showWindow = showWindow;
@@ -50,6 +75,10 @@ internal sealed class TrayIcon : IDisposable
         _exitApplication = exitApplication;
         _isEngineRunning = isEngineRunning;
         _statusReader = statusReader;
+        _togglesReader = togglesReader;
+        _toggleDimWhenAway = toggleDimWhenAway;
+        _toggleLockWhenAway = toggleLockWhenAway;
+        _toggleSedentary = toggleSedentary;
         _windowProc = WndProc;
         _taskbarCreatedMessage = RegisterWindowMessage("TaskbarCreated");
         _oldWindowProc = SetWindowLongPtr(_hwnd, GwlpWndProc,
@@ -218,37 +247,161 @@ internal sealed class TrayIcon : IDisposable
 
     private void ShowContextMenu()
     {
-        nint menu = CreatePopupMenu();
-        if (menu == 0) return;
         try
         {
+            _menuWindow?.Close();
+            _menuWindow = new TrayMenuWindow(
+                _showWindow, _toggleEngine, _exitApplication, _isEngineRunning,
+                _statusReader, _togglesReader, _toggleDimWhenAway,
+                _toggleLockWhenAway, _toggleSedentary);
+            if (GetCursorPos(out var point))
+                _menuWindow.ShowAt(point.X, point.Y);
+            else
+                _menuWindow.ShowAt(0, 0);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[TrayIcon] 自定义菜单失败，回退系统菜单: {ex}");
+            _menuWindow?.Close();
+            _menuWindow = null;
+            ShowNativeContextMenu();
+        }
+    }
+
+    private void ShowNativeContextMenu()
+    {
+        nint menu = CreatePopupMenu();
+        if (menu == 0) return;
+        var glyphs = new List<nint>();   // 每个菜单项的单色图标位图, 用完统一销毁
+        nint subnet = 0;
+        try
+        {
+            // 1) 显示窗口
             AppendMenu(menu, MfString, IdShow, "显示窗口");
+            SetItemGlyph(menu, IdShow, GlyphWindow, glyphs);
+
             AppendMenu(menu, MfSeparator, 0, null);
-            AppendMenu(menu, MfString, IdToggle,
-                _isEngineRunning() ? "停止自动调节" : "开始自动调节");
+
+            // 2) 状态行: 置灰不可点, 只作信息展示
             if (_statusReader is not null)
             {
                 var (envLight, brightness) = _statusReader();
                 // -1 是"还没有数据"的哨兵值: 引擎刚启动, 摄像头还没出第一帧.
-                // 直接显示 -1 会让人以为出错, 分别用"测量中"和"—"表示.
                 string text = envLight < 0 || brightness < 0
                     ? (_isEngineRunning() ? "环境光 测量中…" : "环境光 — | 亮度 —")
                     : $"环境光 {envLight} | 亮度 {brightness}%";
-                AppendMenu(menu, MfString, IdStatus, text);
+                AppendMenu(menu, MfString | MfGrayed, IdStatus, text);
             }
+
+            AppendMenu(menu, MfSeparator, 0, null);
+
+            // 3) 开始/停止
+            AppendMenu(menu, MfString, IdToggle,
+                _isEngineRunning() ? "停止自动调节" : "开始自动调节");
+            SetItemGlyph(menu, IdToggle, GlyphSun, glyphs);
+
+            // 4) 无人检测子菜单(带勾选状态)
+            if (_togglesReader is not null)
+            {
+                var (dim, lockScreen, sedentary) = _togglesReader();
+                subnet = CreatePopupMenu();
+                AppendMenu(subnet, MfString | (dim ? MfChecked : 0), IdDimWhenAway, "无人时降低亮度");
+                SetItemGlyph(subnet, IdDimWhenAway, GlyphEye, glyphs);
+                AppendMenu(subnet, MfString | (lockScreen ? MfChecked : 0), IdLockWhenAway, "无人时自动锁屏");
+                SetItemGlyph(subnet, IdLockWhenAway, GlyphPower, glyphs);
+                AppendMenu(subnet, MfSeparator, 0, null);
+                AppendMenu(subnet, MfString | (sedentary ? MfChecked : 0), IdSedentary, "久坐提醒");
+                SetItemGlyph(subnet, IdSedentary, GlyphBell, glyphs);
+                AppendMenu(menu, MfPopup, (uint)subnet, "无人检测");
+            }
+
             AppendMenu(menu, MfSeparator, 0, null);
             AppendMenu(menu, MfString, IdExit, "退出程序");
+            SetItemGlyph(menu, IdExit, GlyphPower, glyphs);
+
             GetCursorPos(out var point);
             SetForegroundWindow(_hwnd);
             uint command = TrackPopupMenuEx(menu, TpmRightButton | TpmReturnCmd,
                 point.X, point.Y, _hwnd, 0);
-            if (command == IdShow) _showWindow();
-            else if (command == IdToggle) _toggleEngine();
-            else if (command == IdExit) _exitApplication();
+
+            switch (command)
+            {
+                case IdShow: _showWindow(); break;
+                case IdToggle: _toggleEngine(); break;
+                case IdExit: _exitApplication(); break;
+                case IdDimWhenAway: _toggleDimWhenAway?.Invoke(); break;
+                case IdLockWhenAway: _toggleLockWhenAway?.Invoke(); break;
+                case IdSedentary: _toggleSedentary?.Invoke(); break;
+            }
         }
         finally
         {
+            // 子菜单: DestroyMenu 父菜单时会一并销毁, 这里只需在未挂上时单独清理.
+            if (subnet != 0) { /* 已挂到父菜单, 交给 DestroyMenu(menu) */ }
             DestroyMenu(menu);
+            foreach (var h in glyphs) DeleteObject(h);
+        }
+    }
+
+    /// <summary>
+    /// 给菜单项挂一个 Segoe MDL2 字形图标.
+    /// 用<b>单色</b>位图: Windows 把它当遮罩, 用菜单文字色绘制前景,
+    /// 深浅主题自动适配, 不需要自己判断主题。
+    /// </summary>
+    private static void SetItemGlyph(nint menu, uint id, string glyph, List<nint> keepAlive)
+    {
+        try
+        {
+            var hbmp = CreateGlyphBitmap(glyph, 16);
+            if (hbmp == 0) return;
+            if (SetMenuItemBitmaps(menu, id, MfByCommand, hbmp, hbmp))
+                keepAlive.Add(hbmp);
+            else
+                DeleteObject(hbmp);
+        }
+        catch { /* 图标失败不影响菜单可用 */ }
+    }
+
+    private static nint CreateGlyphBitmap(string glyph, int size)
+    {
+        nint dc = CreateCompatibleDC(0);
+        if (dc == 0) return 0;
+        // 单色位图: 1 = 用菜单文字色绘制, 0 = 透明.
+        nint bmp = CreateMonoBitmap(size, size, 1, 1, null);
+        nint oldBmp = 0, oldFont = 0;
+        nint font = 0;
+        try
+        {
+            if (bmp == 0) return 0;
+            oldBmp = SelectObject(dc, bmp);
+
+            // 背景刷成 0(透明), 字形刷成 1(前景色).
+            var rect = new Rect { Left = 0, Top = 0, Right = size, Bottom = size };
+            PatBlt(dc, 0, 0, size, size, Blackness);
+            SetBkMode(dc, Transparent);
+            SetTextColor(dc, 0x00FFFFFF);   // 单色 DC 里非黑即白: 白=1
+
+            font = CreateFont(-size, 0, 0, 0, 400, 0, 0, 0, DefaultCharset,
+                OutTtPrecis, ClipDefaultPrecis, DefaultQuality, DefaultPitch,
+                "Segoe MDL2 Assets");
+            if (font == 0) return 0;
+            oldFont = SelectObject(dc, font);
+
+            DrawText(dc, glyph, -1, ref rect,
+                DtCenter | DtVCenter | DtSingleLine | DtNoPrefix);
+
+            SelectObject(dc, oldFont);
+            oldFont = 0;
+            SelectObject(dc, oldBmp);
+            oldBmp = 0;
+            return bmp;
+        }
+        finally
+        {
+            if (oldFont != 0) SelectObject(dc, oldFont);
+            if (oldBmp != 0) SelectObject(dc, oldBmp);
+            if (font != 0) DeleteObject(font);
+            DeleteDC(dc);
         }
     }
 
@@ -256,6 +409,8 @@ internal sealed class TrayIcon : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _menuWindow?.Close();
+        _menuWindow = null;
         Hide();
         if (_oldWindowProc != 0)
         {
@@ -344,5 +499,45 @@ internal sealed class TrayIcon : IDisposable
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(nint hwnd);
+
+    // ---- 菜单图标(单色位图)相关 ----
+    private const uint Blackness = 0x00000042;
+    private const int Transparent = 1;
+    private const uint DefaultCharset = 1;
+    private const uint OutTtPrecis = 0;
+    private const uint ClipDefaultPrecis = 0;
+    private const uint DefaultQuality = 0;
+    private const uint DefaultPitch = 0;
+    private const uint DtCenter = 0x0001;
+    private const uint DtVCenter = 0x0004;
+    private const uint DtSingleLine = 0x0020;
+    private const uint DtNoPrefix = 0x0800;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Rect { public int Left, Top, Right, Bottom; }
+
+    [DllImport("user32.dll")]
+    private static extern bool SetMenuItemBitmaps(nint menu, uint item, uint flags, nint uncheckedBmp, nint checkBmp);
+    [DllImport("gdi32.dll")]
+    private static extern nint CreateCompatibleDC(nint hdc);
+    [DllImport("gdi32.dll")]
+    private static extern bool DeleteDC(nint hdc);
+    [DllImport("gdi32.dll", EntryPoint = "CreateBitmap")]
+    private static extern nint CreateMonoBitmap(int width, int height, uint planes, uint bitsPerPixel,
+        [In] byte[]? bits);
+    [DllImport("gdi32.dll")]
+    private static extern nint SelectObject(nint hdc, nint obj);
+    [DllImport("gdi32.dll")]
+    private static extern bool PatBlt(nint hdc, int x, int y, int w, int h, uint rop);
+    [DllImport("gdi32.dll")]
+    private static extern int SetBkMode(nint hdc, int mode);
+    [DllImport("gdi32.dll")]
+    private static extern uint SetTextColor(nint hdc, uint color);
+    [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
+    private static extern nint CreateFont(int height, int width, int escapement, int orientation,
+        int weight, uint italic, uint underline, uint strikeOut, uint charSet, uint outPrecision,
+        uint clipPrecision, uint quality, uint pitchAndFamily, string faceName);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int DrawText(nint hdc, string text, int count, ref Rect rect, uint flags);
 
 }

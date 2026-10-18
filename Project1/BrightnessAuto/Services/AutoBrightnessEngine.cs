@@ -368,7 +368,9 @@ public sealed class AutoBrightnessEngine
                 }
 
                 // 无人检测: 每 3 次亮度检测做一次人脸检测, 省 CPU.
-                if (_params.IdleLockEnabled && ++faceCheckCounter % 3 == 0)
+                // 降亮与锁屏任一开启时才需要人脸检测(两者已解耦).
+                if ((_params.IdleLockEnabled || _params.DimWhenAwayEnabled)
+                    && ++faceCheckCounter % 3 == 0)
                 {
                     var faceResult = await _camera.DetectFaceAsync(token);
                     bool hasFace = faceResult?.HasFace == true;
@@ -468,8 +470,8 @@ public sealed class AutoBrightnessEngine
                             faceOffsetDir = 0;
                             faceOffsetSamples = 0;
                             int faceIdleSec = (int)(DateTime.Now - lastSeenFace).TotalSeconds;
-                            // 10秒无人脸+无输入 → 开始降亮度
-                            if (faceIdleSec >= 10 && applied > 10)
+                            // 10秒无人脸+无输入 → 开始降亮度(可单独关闭, 与锁屏解耦)
+                            if (_params.DimWhenAwayEnabled && faceIdleSec >= 10 && applied > 10)
                             {
                                 isDimming = true;
                                 int dimmed = Math.Max(10, applied - 20);

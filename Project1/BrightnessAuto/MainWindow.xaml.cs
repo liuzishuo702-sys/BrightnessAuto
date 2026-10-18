@@ -140,7 +140,16 @@ public sealed partial class MainWindow : Window
             nint hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             _trayIcon = new TrayIcon(hwnd, RestoreFromTray, ToggleEngineFromTray,
                 ExitFromTray, () => _engine.IsRunning,
-                () => (_engine.LatestStatus.Luma, _engine.LatestStatus.Brightness));
+                () => (_engine.LatestStatus.Luma, _engine.LatestStatus.Brightness),
+                () => (_params.DimWhenAwayEnabled, _params.IdleLockEnabled,
+                       _params.SedentaryReminderMinutes > 0),
+                () => { _params.DimWhenAwayEnabled = !_params.DimWhenAwayEnabled;
+                        AppendLog(_params.DimWhenAwayEnabled ? "无人时降低亮度: 开" : "无人时降低亮度: 关"); },
+                () => { _params.IdleLockEnabled = !_params.IdleLockEnabled;
+                        AppendLog(_params.IdleLockEnabled ? "无人时自动锁屏: 开" : "无人时自动锁屏: 关"); },
+                () => { _params.SedentaryReminderMinutes =
+                            _params.SedentaryReminderMinutes > 0 ? 0 : 45;
+                        AppendLog(_params.SedentaryReminderMinutes > 0 ? "久坐提醒: 开 (45 分钟)" : "久坐提醒: 关"); });
         }
         catch (Exception ex) { Debug.WriteLine($"[MainWindow] 托盘初始化失败: {ex.Message}"); }
         try { AppWindow.Closing += OnAppWindowClosing; }
