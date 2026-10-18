@@ -322,7 +322,9 @@ public sealed class AutoBrightnessEngine
 
                     if (pendingSamples < StableSamplesRequired)
                     {
-                        Status?.Invoke(new StatusUpdate((int)(smoothLuma + 0.5), applied));
+                        var snapshot = new StatusUpdate((int)(smoothLuma + 0.5), applied);
+                        LatestStatus = snapshot;   // 托盘菜单读它
+                        Status?.Invoke(snapshot);
                     }
                     else
                     {
@@ -359,7 +361,9 @@ public sealed class AutoBrightnessEngine
                                 Log?.Invoke($"环境光 {smoothLuma:F0}  →  维持 {applied}%");
                             }
                         }
-                        Status?.Invoke(new StatusUpdate((int)(smoothLuma + 0.5), applied));
+                        var snapshot = new StatusUpdate((int)(smoothLuma + 0.5), applied);
+                        LatestStatus = snapshot;   // 托盘菜单读它
+                        Status?.Invoke(snapshot);
                     }
                 }
 

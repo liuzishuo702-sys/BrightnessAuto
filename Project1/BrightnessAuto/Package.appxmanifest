@@ -9,7 +9,7 @@
   <Identity
     Name="BrightnessAuto.Dev"
     Publisher="CN=BrightnessAuto"
-    Version="3.1.39.0" />
+    Version="3.1.40.0" />
 
   <Properties>
     <DisplayName>环境光自动亮度</DisplayName>

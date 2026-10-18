@@ -229,8 +229,12 @@ internal sealed class TrayIcon : IDisposable
             if (_statusReader is not null)
             {
                 var (envLight, brightness) = _statusReader();
-                AppendMenu(menu, MfString, IdStatus,
-                    $"环境光 {envLight} | 亮度 {brightness}%");
+                // -1 是"还没有数据"的哨兵值: 引擎刚启动, 摄像头还没出第一帧.
+                // 直接显示 -1 会让人以为出错, 分别用"测量中"和"—"表示.
+                string text = envLight < 0 || brightness < 0
+                    ? (_isEngineRunning() ? "环境光 测量中…" : "环境光 — | 亮度 —")
+                    : $"环境光 {envLight} | 亮度 {brightness}%";
+                AppendMenu(menu, MfString, IdStatus, text);
             }
             AppendMenu(menu, MfSeparator, 0, null);
             AppendMenu(menu, MfString, IdExit, "退出程序");
