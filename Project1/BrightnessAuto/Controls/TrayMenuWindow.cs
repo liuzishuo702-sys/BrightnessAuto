@@ -25,6 +25,7 @@ internal sealed class TrayMenuWindow : Window
     private bool _loaded;
     private bool _showPending;
     private bool _closed;
+    private int _zOrderTicks;
     private readonly HashSet<nint> _windowsBeforeMenu = new();
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _popupZOrderTimer;
 
@@ -39,7 +40,16 @@ internal sealed class TrayMenuWindow : Window
 
         _popupZOrderTimer = _host.DispatcherQueue.CreateTimer();
         _popupZOrderTimer.Interval = TimeSpan.FromMilliseconds(40);
-        _popupZOrderTimer.Tick += (_, _) => ElevateMenuPopups();
+        _popupZOrderTimer.Tick += (_, _) =>
+        {
+            ElevateMenuPopups();
+            // 菜单弹层只需在刚出现的几百毫秒内提权，没必要一直每 40ms 枚举全系统窗口.
+            if (++_zOrderTicks >= 8)
+            {
+                _popupZOrderTimer.Stop();
+                _zOrderTicks = 0;
+            }
+        };
 
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
@@ -231,6 +241,12 @@ internal sealed class TrayMenuWindow : Window
     {
         if (_closed) return;
         _closed = true;
+        // 关键: 必须在这里停掉 40ms 定时器.
+        // 只依赖 _menu.Closed 是不够的 —— 外部(下一次右键)直接 Close() 时
+        // MenuFlyout 的 Closed 不保证触发, 定时器会一直跑 EnumWindows,
+        // 右键 N 次就累积 N 个 40ms 定时器, 最终把 UI 线程拖死(AppHang).
+        try { _popupZOrderTimer.Stop(); } catch { }
+        try { _menu.Hide(); } catch { }
         base.Close();
     }
 

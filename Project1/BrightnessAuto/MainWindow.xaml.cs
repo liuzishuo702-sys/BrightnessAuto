@@ -144,12 +144,17 @@ public sealed partial class MainWindow : Window
                 () => (_params.DimWhenAwayEnabled, _params.IdleLockEnabled,
                        _params.SedentaryReminderMinutes > 0),
                 () => { _params.DimWhenAwayEnabled = !_params.DimWhenAwayEnabled;
-                        AppendLog(_params.DimWhenAwayEnabled ? "无人时降低亮度: 开" : "无人时降低亮度: 关"); },
+                        AppendLog(_params.DimWhenAwayEnabled ? "无人时降低亮度: 开" : "无人时降低亮度: 关");
+                        SavePreferences(); },
                 () => { _params.IdleLockEnabled = !_params.IdleLockEnabled;
-                        AppendLog(_params.IdleLockEnabled ? "无人时自动锁屏: 开" : "无人时自动锁屏: 关"); },
+                        AppendLog(_params.IdleLockEnabled ? "无人时自动锁屏: 开" : "无人时自动锁屏: 关");
+                        // 托盘改了开关，设置页的 ToggleSwitch 要跟着变，否则界面和实际配置不同步.
+                        if (_uiReady) IdleLockToggle.IsOn = _params.IdleLockEnabled;
+                        SavePreferences(); },
                 () => { _params.SedentaryReminderMinutes =
                             _params.SedentaryReminderMinutes > 0 ? 0 : 45;
-                        AppendLog(_params.SedentaryReminderMinutes > 0 ? "久坐提醒: 开 (45 分钟)" : "久坐提醒: 关"); });
+                        AppendLog(_params.SedentaryReminderMinutes > 0 ? "久坐提醒: 开 (45 分钟)" : "久坐提醒: 关");
+                        SavePreferences(); });
         }
         catch (Exception ex) { Debug.WriteLine($"[MainWindow] 托盘初始化失败: {ex.Message}"); }
         try { AppWindow.Closing += OnAppWindowClosing; }
@@ -910,6 +915,7 @@ public sealed partial class MainWindow : Window
             _autoAdjustOnLaunch = ReadBool(settings, AutoAdjustSettingKey, false);
             _launchToTray = ReadBool(settings, LaunchToTraySettingKey, false);
             _params.IdleLockEnabled = ReadBool(settings, "IdleLockEnabled", true);
+            _params.DimWhenAwayEnabled = ReadBool(settings, "DimWhenAwayEnabled", true);
             _params.IdleLockSeconds = ReadInt(settings, "IdleLockSeconds", _params.IdleLockSeconds, 10, 1800);
             _params.SedentaryReminderMinutes = ReadInt(settings, "SedentaryReminderMinutes",
                 _params.SedentaryReminderMinutes, 5, 240);
@@ -969,6 +975,7 @@ public sealed partial class MainWindow : Window
             values[AutoAdjustSettingKey] = _autoAdjustOnLaunch;
             values[LaunchToTraySettingKey] = _launchToTray;
             values["IdleLockEnabled"] = _params.IdleLockEnabled;
+            values["DimWhenAwayEnabled"] = _params.DimWhenAwayEnabled;
             values["IdleLockSeconds"] = _params.IdleLockSeconds;
             values["SedentaryReminderMinutes"] = _params.SedentaryReminderMinutes;
             values["CameraDeviceId"] = _params.CameraDeviceId;
