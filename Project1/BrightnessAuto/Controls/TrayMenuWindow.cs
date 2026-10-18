@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -7,6 +10,7 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Windows.Foundation;
 using Windows.Graphics;
+using Windows.UI;
 
 namespace BrightnessAuto.Controls;
 
@@ -21,6 +25,8 @@ internal sealed class TrayMenuWindow : Window
     private bool _loaded;
     private bool _showPending;
     private bool _closed;
+    private readonly HashSet<nint> _windowsBeforeMenu = new();
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _popupZOrderTimer;
 
     public TrayMenuWindow(Action showWindow, Action toggleEngine, Action exitApplication,
         Func<bool> isEngineRunning, Func<(int envLight, int brightness)>? statusReader,
@@ -29,6 +35,11 @@ internal sealed class TrayMenuWindow : Window
     {
         Title = "环境光自动亮度菜单宿主";
         Content = _host;
+        _menu.MenuFlyoutPresenterStyle = CreatePresenterStyle();
+
+        _popupZOrderTimer = _host.DispatcherQueue.CreateTimer();
+        _popupZOrderTimer.Interval = TimeSpan.FromMilliseconds(40);
+        _popupZOrderTimer.Tick += (_, _) => ElevateMenuPopups();
 
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
@@ -43,7 +54,16 @@ internal sealed class TrayMenuWindow : Window
             _loaded = true;
             if (_showPending) OpenMenu();
         };
-        _menu.Closed += (_, _) => Close();
+        _menu.Opened += (_, _) =>
+        {
+            ElevateMenuPopups();
+            _popupZOrderTimer.Start();
+        };
+        _menu.Closed += (_, _) =>
+        {
+            _popupZOrderTimer.Stop();
+            Close();
+        };
 
         AddItem("\uE737", "显示窗口", showWindow);
         _menu.Items.Add(new MenuFlyoutSeparator());
@@ -105,20 +125,57 @@ internal sealed class TrayMenuWindow : Window
         FontSize = 16
     };
 
-    public void ShowAt(int x, int y)
+    private static Style CreatePresenterStyle()
+    {
+        var acrylic = new AcrylicBrush
+        {
+            TintColor = Color.FromArgb(255, 20, 43, 44),
+            TintOpacity = 0.68,
+            FallbackColor = Color.FromArgb(255, 31, 43, 44)
+        };
+        var style = new Style(typeof(MenuFlyoutPresenter));
+        style.Setters.Add(new Setter(Control.BackgroundProperty, acrylic));
+        style.Setters.Add(new Setter(Control.BorderBrushProperty,
+            new SolidColorBrush(Color.FromArgb(90, 150, 180, 180))));
+        style.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(1)));
+        style.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(8)));
+        return style;
+    }
+
+    public void ShowAt(int left, int top, int right, int bottom, int pointerX, int pointerY)
     {
         nint hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         nint style = GetWindowLongPtr(hwnd, -20); // GWL_EXSTYLE
-        SetWindowLongPtr(hwnd, -20, (style & ~(nint)0x00040000) | (nint)0x00000080);
+        SetWindowLongPtr(hwnd, -20,
+            (style & ~(nint)0x00040000) | (nint)0x00000080 | (nint)0x00080000);
+        SetLayeredWindowAttributes(hwnd, 0, 0, 0x00000002); // 宿主完全透明，菜单弹层不受影响
 
-        var display = DisplayArea.GetFromPoint(new PointInt32(x, y), DisplayAreaFallback.Primary);
+        var display = DisplayArea.GetFromPoint(new PointInt32(pointerX, pointerY), DisplayAreaFallback.Primary);
         var work = display.WorkArea;
-        int hostX = Math.Clamp(x, work.X, work.X + work.Width - 2);
-        int hostY = Math.Clamp(y, work.Y, work.Y + work.Height - 2);
-        AppWindow.MoveAndResize(new RectInt32(hostX, hostY, 2, 2));
+
+        // 托盘图标通常在工作区外的任务栏里。像 TranslucentTB 一样把宿主矩形
+        // 延伸 1px 进入工作区，让系统弹层能在正确的一侧选择位置。
+        int workRight = work.X + work.Width;
+        int workBottom = work.Y + work.Height;
+        if (left >= workRight) left = workRight - 1;
+        if (right <= work.X) right = work.X + 1;
+        if (top >= workBottom) top = workBottom - 1;
+        if (bottom <= work.Y) bottom = work.Y + 1;
+
+        int width = Math.Max(2, right - left);
+        int height = Math.Max(2, bottom - top);
+        AppWindow.MoveAndResize(new RectInt32(left, top, width, height));
+
+        uint dpi = GetDpiForWindow(hwnd);
+        double scale = dpi == 0 ? 1 : dpi / 96.0;
+        _menuPosition = new Point(
+            Math.Clamp((pointerX - left) / scale, 0, width / scale),
+            Math.Clamp((pointerY - top) / scale, 0, height / scale));
 
         _showPending = true;
+        SnapshotCurrentWindows();
         Activate();
+        SetForegroundWindow(hwnd);
         if (_loaded) OpenMenu();
     }
 
@@ -131,11 +188,43 @@ internal sealed class TrayMenuWindow : Window
             if (_closed) return;
             _menu.ShowAt(_host, new FlyoutShowOptions
             {
-                Position = new Point(1, 1),
-                Placement = FlyoutPlacementMode.TopEdgeAlignedRight,
+                Position = _menuPosition,
+                Placement = FlyoutPlacementMode.Auto,
                 ShowMode = FlyoutShowMode.Standard
             });
         });
+    }
+
+    private Point _menuPosition = new(1, 1);
+
+    private void SnapshotCurrentWindows()
+    {
+        _windowsBeforeMenu.Clear();
+        EnumWindows((window, _) =>
+        {
+            GetWindowThreadProcessId(window, out uint processId);
+            if (processId == (uint)Environment.ProcessId)
+                _windowsBeforeMenu.Add(window);
+            return true;
+        }, 0);
+    }
+
+    private void ElevateMenuPopups()
+    {
+        EnumWindows((window, _) =>
+        {
+            GetWindowThreadProcessId(window, out uint processId);
+            if (processId != (uint)Environment.ProcessId ||
+                _windowsBeforeMenu.Contains(window) || !IsWindowVisible(window))
+                return true;
+
+            var className = new StringBuilder(128);
+            GetClassName(window, className, className.Capacity);
+            if (className.ToString().Contains("Popup", StringComparison.OrdinalIgnoreCase))
+                SetWindowPos(window, (nint)(-1), 0, 0, 0, 0,
+                    0x0001 | 0x0002 | 0x0010); // TOPMOST, 不移动、不改尺寸、不抢焦点
+            return true;
+        }, 0);
     }
 
     public new void Close()
@@ -150,4 +239,31 @@ internal sealed class TrayMenuWindow : Window
 
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
     private static extern nint SetWindowLongPtr(nint hwnd, int index, nint value);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetLayeredWindowAttributes(nint hwnd, uint colorKey, byte alpha, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(nint hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(nint hwnd);
+
+    private delegate bool EnumWindowsProc(nint hwnd, nint lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumWindows(EnumWindowsProc callback, nint lParam);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(nint hwnd, out uint processId);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(nint hwnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(nint hwnd, StringBuilder className, int maxCount);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowPos(nint hwnd, nint insertAfter, int x, int y,
+        int width, int height, uint flags);
 }

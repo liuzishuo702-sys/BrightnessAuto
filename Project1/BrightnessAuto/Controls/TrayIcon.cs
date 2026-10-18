@@ -254,10 +254,10 @@ internal sealed class TrayIcon : IDisposable
                 _showWindow, _toggleEngine, _exitApplication, _isEngineRunning,
                 _statusReader, _togglesReader, _toggleDimWhenAway,
                 _toggleLockWhenAway, _toggleSedentary);
-            if (GetCursorPos(out var point))
-                _menuWindow.ShowAt(point.X, point.Y);
-            else
-                _menuWindow.ShowAt(0, 0);
+            GetCursorPos(out var point);
+            var iconBounds = GetIconBounds(point);
+            _menuWindow.ShowAt(iconBounds.Left, iconBounds.Top,
+                iconBounds.Right, iconBounds.Bottom, point.X, point.Y);
         }
         catch (Exception ex)
         {
@@ -266,6 +266,25 @@ internal sealed class TrayIcon : IDisposable
             _menuWindow = null;
             ShowNativeContextMenu();
         }
+    }
+
+    private Rect GetIconBounds(Point fallbackPoint)
+    {
+        var id = new NotifyIconIdentifier
+        {
+            cbSize = (uint)Marshal.SizeOf<NotifyIconIdentifier>(),
+            hWnd = _hwnd,
+            uID = 1
+        };
+        return Shell_NotifyIconGetRect(ref id, out var bounds) == 0
+            ? bounds
+            : new Rect
+            {
+                Left = fallbackPoint.X,
+                Top = fallbackPoint.Y,
+                Right = fallbackPoint.X + 2,
+                Bottom = fallbackPoint.Y + 2
+            };
     }
 
     private void ShowNativeContextMenu()
@@ -448,6 +467,15 @@ internal sealed class TrayIcon : IDisposable
     private struct Point { public int X; public int Y; }
 
     [StructLayout(LayoutKind.Sequential)]
+    private struct NotifyIconIdentifier
+    {
+        public uint cbSize;
+        public nint hWnd;
+        public uint uID;
+        public Guid guidItem;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     private struct IconInfo
     {
         [MarshalAs(UnmanagedType.Bool)] public bool IsIcon;
@@ -461,6 +489,8 @@ internal sealed class TrayIcon : IDisposable
 
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern bool Shell_NotifyIcon(uint message, ref NotifyIconData data);
+    [DllImport("shell32.dll")]
+    private static extern int Shell_NotifyIconGetRect(ref NotifyIconIdentifier identifier, out Rect iconLocation);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern nint LoadIcon(nint instance, nint iconName);
     [DllImport("user32.dll")]
