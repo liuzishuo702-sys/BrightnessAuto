@@ -188,7 +188,9 @@ public sealed partial class MainWindow : Window
 
             // 卡片悬停: 跟随光标的径向光斑 (Win10 Reveal 风, 不做 Z 抬升).
             AttachCardHover(GreetingCard);
+            AttachCardHover(PresetCard);
             AttachCardHover(MonitorCard);
+            AttachCardHover(HistoryCard);
             AttachCardHover(LogCard);
             AttachCardHover(AppearanceCard);
             AttachCardHover(SettingsCard);

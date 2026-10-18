@@ -17,9 +17,9 @@
                             <Color x:Key="AppStrokeColor">#5A5A5A</Color>
                             <!-- 云母负责窗口氛围，半透明表面负责信息层级。
                                  卡片用竖向渐变做 Win10 那种「上亮下暗」的轻微反光。 -->
-                            <LinearGradientBrush x:Key="AppCardBrush" StartPoint="0,0" EndPoint="0,1" Opacity="0.62">
-                                <GradientStop Color="#3E3E3E" Offset="0" />
-                                <GradientStop Color="#232323" Offset="1" />
+                            <LinearGradientBrush x:Key="AppCardBrush" StartPoint="0,0" EndPoint="0,1" Opacity="0.58">
+                                <GradientStop Color="#343434" Offset="0" />
+                                <GradientStop Color="#262626" Offset="1" />
                             </LinearGradientBrush>
                             <SolidColorBrush x:Key="AppStrokeBrush" Color="{StaticResource AppStrokeColor}" Opacity="0.28" />
                             <SolidColorBrush x:Key="AppSubtleSurfaceBrush" Color="#303030" Opacity="0.42" />
