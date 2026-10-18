@@ -276,4 +276,4 @@ Get-AppxPackage -Name BrightnessAuto.Dev | Remove-AppxPackage
 
 ---
 
-**显示名称**：环境光自动亮度 · **包标识**：`BrightnessAuto.Dev` · **当前版本**：`3.1.27.0`
+**显示名称**：环境光自动亮度 · **包标识**：`BrightnessAuto.Dev` · **当前版本**：`3.1.62.0`
