@@ -8,8 +8,6 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Composition;
-using Microsoft.UI.Composition.SystemBackdrops; // Windows 11 Mica / Acrylic
 using Windows.Foundation;
 using Windows.Graphics;
 using Windows.UI;
@@ -39,10 +37,6 @@ internal sealed class TrayMenuWindow : Window
         Title = "环境光自动亮度菜单宿主";
         Content = _host;
         _menu.MenuFlyoutPresenterStyle = CreatePresenterStyle();
-
-        // 给宿主窗口挂 Windows 11 Mica 云母，宿主透明区域会显示云母质感，
-        // 菜单弹层悬浮在云母之上，整体呈现云母 + 半透明卡片的视觉.
-        this.SystemBackdrop = new MicaBackdrop();
 
         _popupZOrderTimer = _host.DispatcherQueue.CreateTimer();
         _popupZOrderTimer.Interval = TimeSpan.FromMilliseconds(40);
@@ -123,9 +117,6 @@ internal sealed class TrayMenuWindow : Window
     private void AddItem(string glyph, string label, Action action)
     {
         var item = new MenuFlyoutItem { Text = label, Icon = Glyph(glyph) };
-        item.CornerRadius = new CornerRadius(0);
-        item.Padding = new Thickness(12, 8, 12, 8);
-        item.Style = CreateFlatHoverStyle();
         item.Click += (_, _) => action();
         _menu.Items.Add(item);
     }
@@ -133,9 +124,6 @@ internal sealed class TrayMenuWindow : Window
     private static ToggleMenuFlyoutItem Toggle(string label, bool enabled, Action? action)
     {
         var item = new ToggleMenuFlyoutItem { Text = label, IsChecked = enabled };
-        item.CornerRadius = new CornerRadius(0);
-        item.Padding = new Thickness(12, 8, 12, 8);
-        item.Style = CreateFlatHoverStyle();
         if (action is not null) item.Click += (_, _) => action();
         return item;
     }
@@ -147,38 +135,20 @@ internal sealed class TrayMenuWindow : Window
         FontSize = 16
     };
 
-    /// <summary>
-    /// Win10 平板风格的鼠标经过样式: 纯色高亮 + 方角，不要 Win11 默认的
-    /// Acrylic 模糊/圆角 hover.
-    /// </summary>
-    private static Style CreateFlatHoverStyle()
-    {
-        var style = new Style(typeof(MenuFlyoutItemBase));
-        style.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(0)));
-        style.Setters.Add(new Setter(Control.BackgroundProperty,
-            new SolidColorBrush(Color.FromArgb(0, 255, 255, 255))));
-        style.Setters.Add(new Setter(Control.ForegroundProperty,
-            new SolidColorBrush(Color.FromArgb(255, 230, 230, 230))));
-        // 鼠标经过: 纯色 Windows 蓝高亮，无模糊.
-        style.Setters.Add(new Setter(Control.BackgroundProperty,
-            new SolidColorBrush(Color.FromArgb(0, 255, 255, 255))));
-        // VisualStateManager 鼠标经过状态
-        var pointerOverBg = new SolidColorBrush(Color.FromArgb(255, 0, 120, 212));
-        var pointerOverFg = new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
-        // 用 VisualStateGroup 处理 PointerOver，避免 Triggers 不支持的问题.
-        return style;
-    }
-
     private static Style CreatePresenterStyle()
     {
-        // 背景设为 null，让窗口的 Mica 云母透出；边框保留 1px 辅助区分层级.
+        var acrylic = new AcrylicBrush
+        {
+            TintColor = Color.FromArgb(255, 20, 43, 44),
+            TintOpacity = 0.68,
+            FallbackColor = Color.FromArgb(255, 31, 43, 44)
+        };
         var style = new Style(typeof(MenuFlyoutPresenter));
-        style.Setters.Add(new Setter(Control.BackgroundProperty, null));
+        style.Setters.Add(new Setter(Control.BackgroundProperty, acrylic));
         style.Setters.Add(new Setter(Control.BorderBrushProperty,
-            new SolidColorBrush(Color.FromArgb(60, 255, 255, 255))));
+            new SolidColorBrush(Color.FromArgb(90, 150, 180, 180))));
         style.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(1)));
-        // Win10 平板风格: 方角，不要圆角.
-        style.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(0)));
+        style.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(8)));
         return style;
     }
 

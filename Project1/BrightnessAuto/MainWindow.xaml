@@ -176,6 +176,25 @@
                                 </Grid>
                             </Border>
 
+                            <!-- 场景预设: 统一 Win10 卡片样式（渐变反光 + 细描边 + 方角），快速切换常用亮度策略 -->
+                            <Border x:Name="PresetCard" Style="{StaticResource AppCardStyle}" Padding="16">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="场景预设" Style="{StaticResource SettingTitleStyle}"
+                                               Margin="0,0,0,4" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,4">
+                                        <Button x:Name="PresetOfficeBtn" Click="OnPresetOfficeClick"
+                                            ToolTipService.ToolTip="办公模式：中等亮度，适合长时间文档阅读，护眼不疲劳">办公模式</Button>
+                                        <Button x:Name="PresetMovieBtn" Click="OnPresetMovieClick"
+                                            ToolTipService.ToolTip="观影模式：较低亮度，适合看电影，增强画面对比度">观影模式</Button>
+                                        <Button x:Name="PresetGameBtn" Click="OnPresetGameClick"
+                                            ToolTipService.ToolTip="游戏模式：较高亮度，适合游戏，色彩更鲜艳">游戏模式</Button>
+                                    </StackPanel>
+                                    <TextBlock Text="切换后将应用对应的亮度范围与调节策略；手动调节会暂时覆盖场景预设。"
+                                               FontSize="12" TextWrapping="Wrap"
+                                               Foreground="{ThemeResource AppTextDimBrush}" />
+                                </StackPanel>
+                            </Border>
+
                             <!-- 区块标题: 自动调节状态 -->
                             <TextBlock Text="自动调节" Style="{StaticResource SectionHeaderStyle}"
                                        Margin="2,6,0,-4" />
@@ -575,12 +594,6 @@
                                                       Toggled="OnFaceTiltToggled" />
                                     </Grid>
                                     <Border Height="1" Background="{ThemeResource AppStrokeBrush}" />
-                                    <TextBlock Text="场景预设" Style="{StaticResource SettingTitleStyle}" Margin="0,16,0,8" />
-                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,4">
-                                        <Button x:Name="PresetOfficeBtn" Click="OnPresetOfficeClick">办公模式</Button>
-                                        <Button x:Name="PresetMovieBtn" Click="OnPresetMovieClick">观影模式</Button>
-                                        <Button x:Name="PresetGameBtn" Click="OnPresetGameClick">游戏模式</Button>
-                                    </StackPanel>
                                     <Button HorizontalAlignment="Left" Margin="2,14,0,2" Padding="12,6"
                                             Click="OnResetSettingsClick">
                                         <StackPanel Orientation="Horizontal" Spacing="8">

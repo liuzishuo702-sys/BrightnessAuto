@@ -15,8 +15,12 @@
                         <ResourceDictionary x:Key="Dark">
                             <Color x:Key="AppCardColor">#2C2C2C</Color>
                             <Color x:Key="AppStrokeColor">#5A5A5A</Color>
-                            <!-- 云母负责窗口氛围，半透明表面负责信息层级。 -->
-                            <SolidColorBrush x:Key="AppCardBrush" Color="#242424" Opacity="0.46" />
+                            <!-- 云母负责窗口氛围，半透明表面负责信息层级。
+                                 卡片用竖向渐变做 Win10 那种「上亮下暗」的轻微反光。 -->
+                            <LinearGradientBrush x:Key="AppCardBrush" StartPoint="0,0" EndPoint="0,1" Opacity="0.62">
+                                <GradientStop Color="#3E3E3E" Offset="0" />
+                                <GradientStop Color="#232323" Offset="1" />
+                            </LinearGradientBrush>
                             <SolidColorBrush x:Key="AppStrokeBrush" Color="{StaticResource AppStrokeColor}" Opacity="0.28" />
                             <SolidColorBrush x:Key="AppSubtleSurfaceBrush" Color="#303030" Opacity="0.42" />
                             <SolidColorBrush x:Key="AppTopHighlightBrush" Color="#FFFFFF" Opacity="0.10" />
@@ -42,7 +46,10 @@
                         <ResourceDictionary x:Key="Light">
                             <Color x:Key="AppCardColor">#FFFFFF</Color>
                             <Color x:Key="AppStrokeColor">#D5D5D5</Color>
-                            <SolidColorBrush x:Key="AppCardBrush" Color="#FFFFFF" Opacity="0.42" />
+                            <LinearGradientBrush x:Key="AppCardBrush" StartPoint="0,0" EndPoint="0,1" Opacity="0.72">
+                                <GradientStop Color="#FFFFFF" Offset="0" />
+                                <GradientStop Color="#F1F1F1" Offset="1" />
+                            </LinearGradientBrush>
                             <SolidColorBrush x:Key="AppStrokeBrush" Color="#B8C4C4" Opacity="0.72" />
                             <SolidColorBrush x:Key="AppSubtleSurfaceBrush" Color="#FFFFFF" Opacity="0.36" />
                             <SolidColorBrush x:Key="AppTopHighlightBrush" Color="#FFFFFF" Opacity="0.82" />
@@ -79,14 +86,14 @@
                         <Setter Property="Margin" Value="2,0,0,8" />
                     </Style>
 
-                    <!-- 通用卡片: 方角(3px) + 1px 细描边 + 近实底.
+                    <!-- 通用卡片: Win10 风格 —— 方角(4px) + 1px 细描边 + 竖向渐变反光.
                          注意: 投影用的 Translation 需在各卡片上以内联属性设置,
                          Vector3 无法通过 Style Setter 的字符串赋值(会让 XAML 编译器崩溃). -->
                     <Style x:Key="AppCardStyle" TargetType="Border">
                         <Setter Property="Background" Value="{ThemeResource AppCardBrush}" />
                         <Setter Property="BorderBrush" Value="{ThemeResource AppStrokeBrush}" />
                         <Setter Property="BorderThickness" Value="1" />
-                        <Setter Property="CornerRadius" Value="8" />
+                        <Setter Property="CornerRadius" Value="4" />
                         <Setter Property="Padding" Value="20,18" />
                     </Style>
 
