@@ -24,12 +24,14 @@ internal sealed class TrayIcon : IDisposable
     private const uint IdShow = 1;
     private const uint IdToggle = 2;
     private const uint IdExit = 3;
+    private const uint IdStatus = 4;   // 菜单里的状态行，点击无反应
 
     private readonly nint _hwnd;
     private readonly Action _showWindow;
     private readonly Action _toggleEngine;
     private readonly Action _exitApplication;
     private readonly Func<bool> _isEngineRunning;
+    private readonly Func<(int envLight, int brightness)>? _statusReader;
     private readonly WindowProc _windowProc;
     private readonly uint _taskbarCreatedMessage;
     private nint _oldWindowProc;
@@ -39,13 +41,15 @@ internal sealed class TrayIcon : IDisposable
     private bool _disposed;
 
     public TrayIcon(nint hwnd, Action showWindow, Action toggleEngine,
-        Action exitApplication, Func<bool> isEngineRunning)
+        Action exitApplication, Func<bool> isEngineRunning,
+        Func<(int envLight, int brightness)>? statusReader = null)
     {
         _hwnd = hwnd;
         _showWindow = showWindow;
         _toggleEngine = toggleEngine;
         _exitApplication = exitApplication;
         _isEngineRunning = isEngineRunning;
+        _statusReader = statusReader;
         _windowProc = WndProc;
         _taskbarCreatedMessage = RegisterWindowMessage("TaskbarCreated");
         _oldWindowProc = SetWindowLongPtr(_hwnd, GwlpWndProc,
@@ -222,6 +226,12 @@ internal sealed class TrayIcon : IDisposable
             AppendMenu(menu, MfSeparator, 0, null);
             AppendMenu(menu, MfString, IdToggle,
                 _isEngineRunning() ? "停止自动调节" : "开始自动调节");
+            if (_statusReader is not null)
+            {
+                var (envLight, brightness) = _statusReader();
+                AppendMenu(menu, MfString, IdStatus,
+                    $"环境光 {envLight} | 亮度 {brightness}%");
+            }
             AppendMenu(menu, MfSeparator, 0, null);
             AppendMenu(menu, MfString, IdExit, "退出程序");
             GetCursorPos(out var point);

@@ -139,7 +139,8 @@ public sealed partial class MainWindow : Window
         {
             nint hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             _trayIcon = new TrayIcon(hwnd, RestoreFromTray, ToggleEngineFromTray,
-                ExitFromTray, () => _engine.IsRunning);
+                ExitFromTray, () => _engine.IsRunning,
+                () => (_engine.LatestStatus.Luma, _engine.LatestStatus.Brightness));
         }
         catch (Exception ex) { Debug.WriteLine($"[MainWindow] 托盘初始化失败: {ex.Message}"); }
         try { AppWindow.Closing += OnAppWindowClosing; }

@@ -93,6 +93,8 @@ public sealed class AutoBrightnessEngine
 
     public event Action<string>? Log;
     public event Action<StatusUpdate>? Status;
+    /// <summary>最新一次状态更新，供托盘菜单显示「环境光 | 亮度」。</summary>
+    public StatusUpdate LatestStatus { get; set; } = new(-1, -1);
     /// <summary>无人锁屏前的倒计时提醒, 参数为剩余秒数.</summary>
     public event Action<int>? IdleLockWarning;
     /// <summary>久坐提醒, 参数为本次连续计入的分钟数.</summary>
