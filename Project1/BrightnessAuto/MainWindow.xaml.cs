@@ -100,6 +100,10 @@ public sealed partial class MainWindow : Window
         // Win10 Reveal 式按下: 从触点向外缓慢扩散的径向光(非整卡瞬时模糊).
         public required SpriteVisual PressSpot = null!;
         public required CompositionRadialGradientBrush PressBrush = null!;
+        // Win10 Reveal 边框光: 描边随指针靠近哪条边/哪个角就亮哪一段.
+        public required ShapeVisual BorderGlow = null!;
+        public required CompositionRadialGradientBrush BorderBrush = null!;
+        public required CompositionRoundedRectangleGeometry BorderGeo = null!;
         public bool Hovering;
         public bool Pressing;
         public float CardW;
@@ -351,6 +355,28 @@ public sealed partial class MainWindow : Window
         pressSpot.Opacity = 0f;
         root.Children.InsertAtTop(pressSpot);
 
+        // 边框 Reveal: 只画 1px 描边, 用径向渐变当描边色, 中心跟着指针走 —
+        // 鼠标经过哪条边/哪个角, 那一段边框就亮起来.
+        var borderGeo = comp.CreateRoundedRectangleGeometry();
+        var borderBrush = comp.CreateRadialGradientBrush();
+        borderBrush.MappingMode = CompositionMappingMode.Absolute;
+        borderBrush.EllipseCenter = new Vector2(0, 0);
+        borderBrush.EllipseRadius = new Vector2(110f, 110f);
+        var b0 = comp.CreateColorGradientStop(); b0.Offset = 0f;  b0.Color = Color.FromArgb(0, 255, 255, 255);
+        var b1 = comp.CreateColorGradientStop(); b1.Offset = 1f;  b1.Color = Color.FromArgb(0, 255, 255, 255);
+        borderBrush.ColorStops.Insert(0, b0);
+        borderBrush.ColorStops.Insert(1, b1);
+
+        var borderShape = comp.CreateSpriteShape(borderGeo);
+        borderShape.StrokeThickness = 1.4f;
+        borderShape.StrokeBrush = borderBrush;
+        borderShape.FillBrush = null;
+        var borderGlow = comp.CreateShapeVisual();
+        borderGlow.Shapes.Add(borderShape);
+        borderGlow.IsHitTestVisible = false;
+        borderGlow.Opacity = 0f;
+        root.Children.InsertAtTop(borderGlow);
+
         ElementCompositionPreview.SetElementChildVisual(card, root);
 
         var fx = new CardHoverFx
@@ -360,6 +386,9 @@ public sealed partial class MainWindow : Window
             Brush = brush,
             PressSpot = pressSpot,
             PressBrush = pressBrush,
+            BorderGlow = borderGlow,
+            BorderBrush = borderBrush,
+            BorderGeo = borderGeo,
         };
         _cardFx[card] = fx;
 
@@ -382,6 +411,11 @@ public sealed partial class MainWindow : Window
             // 悬停光斑: Win10 Reveal 的那个圆很小(约百来像素), 不随卡片撑大.
             float r = Math.Clamp(Math.Min(w, h) * 0.22f, 55f, 95f);
             brush.EllipseRadius = new Vector2(r, r);
+            // 边框描边走内缩半像素, 保证 1px 线不被裁掉.
+            fx.BorderGeo.Size = new Vector2(Math.Max(1f, w - 1f), Math.Max(1f, h - 1f));
+            fx.BorderGeo.Offset = new Vector2(0.5f, 0.5f);
+            fx.BorderGeo.CornerRadius = new Vector2(cr, cr);
+            fx.BorderGlow.Size = new Vector2(w, h);
         }
 
         card.SizeChanged += (_, _) => SyncSize();
@@ -445,6 +479,7 @@ public sealed partial class MainWindow : Window
         fade.InsertKeyFrame(1f, 1f);
         fade.Duration = TimeSpan.FromMilliseconds(160);
         fx.Spot.StartAnimation("Opacity", fade);
+        fx.BorderGlow.StartAnimation("Opacity", fade);
 
         UpdateSpotCenter(card, fx, e);
     }
@@ -468,6 +503,7 @@ public sealed partial class MainWindow : Window
         fade.InsertKeyFrame(1f, 0f);
         fade.Duration = TimeSpan.FromMilliseconds(200);
         fx.Spot.StartAnimation("Opacity", fade);
+        fx.BorderGlow.StartAnimation("Opacity", fade);
     }
 
     private void OnCardPointerCanceled(object sender, PointerRoutedEventArgs e)
@@ -588,7 +624,10 @@ public sealed partial class MainWindow : Window
     private static void UpdateSpotCenter(Border card, CardHoverFx fx, PointerRoutedEventArgs e)
     {
         var p = e.GetCurrentPoint(card).Position;
-        fx.Brush.EllipseCenter = new Vector2((float)p.X, (float)p.Y);
+        var v = new Vector2((float)p.X, (float)p.Y);
+        fx.Brush.EllipseCenter = v;
+        // 边框光跟同一个点: 指针贴哪条边/哪个角, 那一段描边就亮.
+        fx.BorderBrush.EllipseCenter = v;
     }
 
     private static void UpdatePressCenter(Border card, CardHoverFx fx, PointerRoutedEventArgs e)
@@ -604,6 +643,12 @@ public sealed partial class MainWindow : Window
             ? Color.FromArgb(30, 255, 255, 255)
             : Color.FromArgb(22, 0, 0, 0);
         SetRadialStops(fx.Brush, center);
+
+        // 边框 Reveal 比面光更亮一点, 才看得出线段在动.
+        Color edgeColor = _isDark
+            ? Color.FromArgb(150, 255, 255, 255)
+            : Color.FromArgb(110, 0, 0, 0);
+        SetRadialStops(fx.BorderBrush, edgeColor);
     }
 
     // 按下扩散色: 比悬停略强的中性光, 3 档软晕, 贴近 Win10 Reveal 按压高光.
